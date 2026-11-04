@@ -4,7 +4,7 @@
  * y como lo haría un lector de pantalla.
  *
  *   node formulario.mjs ./fixture/bad.html
- *   node formulario.mjs https://tuweb.com/contacto --submit "Enviar"
+ *   node formulario.mjs https://tuweb.com/contacto
  *
  * No envía nada real: intercepta POST/PUT y los cuenta.
  * Sale con 1 si alguna prueba falla.
@@ -74,7 +74,7 @@ const FIELDS = `(() => {
   const out = [];
   const els = [];
   const walk = (root) => {
-    for (const el of root.querySelectorAll("input, textarea, select")) els.push(el);
+    for (const el of root.querySelectorAll("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) els.push(el);
     for (const el of root.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
   };
   walk(document);
@@ -115,7 +115,7 @@ function setValues(value) {
   };
   const els = [];
   const walk = (root) => {
-    for (const el of root.querySelectorAll("input, textarea, select")) els.push(el);
+    for (const el of root.querySelectorAll("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) els.push(el);
     for (const el of root.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
   };
   walk(document);
@@ -123,6 +123,11 @@ function setValues(value) {
     const t = (el.getAttribute("type") || el.tagName).toLowerCase();
     if (["submit", "button", "reset", "image", "file", "hidden"].includes(t)) continue;
     if (el.disabled) continue;
+    if (el.isContentEditable) {
+      el.textContent = value === "__empty__" ? "" : value === "__spaces__" ? "   " : "Texto de prueba";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      continue;
+    }
     if (t === "checkbox" || t === "radio") {
       el.checked = value !== "__empty__";
       el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -157,7 +162,7 @@ const STATE = `(() => ({
     ? (document.activeElement.getAttribute("name") || document.activeElement.tagName.toLowerCase())
     : null,
   invalid: [...document.querySelectorAll("[aria-invalid='true']")].map((e) => e.getAttribute("name") || e.id),
-  live: [...document.querySelectorAll("[aria-live], [role='alert']")]
+  live: [...document.querySelectorAll("[aria-live], [role='alert'], [role='status'], [role='log'], output")]
     .map((e) => (e.innerText || "").trim()).filter(Boolean),
   visibleErrors: [...document.querySelectorAll("[class*='error'], [data-error], .error, .invalid")]
     .filter((e) => e.offsetParent !== null && (e.innerText || "").trim()).length,
@@ -169,23 +174,17 @@ const browser = await chromium.launch();
 // sin service workers: se saltan page.route y el formulario saldría a la red de verdad
 const page = await browser.newPage({ viewport: { width, height }, serviceWorkers: "block" });
 
-let posts = 0;
-let navs = 0;
+let attempts = 0;
 let submitting = false;
 let loading = false;
-const reset = () => { posts = 0; navs = 0; };
+const reset = () => { attempts = 0; };
 
 await page.route("**/*", async (route) => {
   const req = route.request();
-  if (["POST", "PUT", "PATCH"].includes(req.method())) {
-    posts++;
+  // Mientras se pulsa enviar, se corta TODO: POST, GET de documento, fetch GET, beacon.
+  if (!loading && submitting) {
+    attempts++;
     return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-  }
-  // un formulario GET navega con los datos: se corta para no enviarlos de verdad.
-  // Las navegaciones que hacemos nosotros (load) no se tocan.
-  if (!loading && submitting && req.method() === "GET" && req.resourceType() === "document") {
-    navs++;
-    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>cortado</title>" });
   }
   return route.continue();
 });
@@ -193,7 +192,8 @@ await page.route("**/*", async (route) => {
 const load = async () => {
   loading = true;
   try {
-    await page.goto(toUrl(url), { waitUntil: "load" });
+    const res = await page.goto(toUrl(url), { waitUntil: "load" });
+    if (res && res.status() >= 400) throw new Error(`HTTP ${res.status()} en ${url}`);
     // `load` no espera a las webfonts: sin esto se mide con la fuente de respaldo
     await page.evaluate(() => document.fonts.ready.then(() => true));
   } finally {
@@ -203,7 +203,7 @@ const load = async () => {
 };
 
 const submit = async () => {
-  const loc = page.locator('button[type="submit"], input[type="submit"], form button').first();
+  const loc = page.locator('form button[type="submit"], form input[type="submit"], form button:not([type])').first();
   try {
     await loc.click({ timeout: 3000 });
     return true;
@@ -218,7 +218,7 @@ const attempt = async () => {
   const clicked = await submit();
   await page.waitForTimeout(wait);
   submitting = false;
-  return { attempts: posts + navs, clicked };
+  return { attempts, clicked };
 };
 
 await load();
@@ -282,13 +282,13 @@ await page.evaluate(setValues, "__fill__");
 const filled = await page.evaluate(() => {
   const els = [];
   const walk = (root) => {
-    for (const el of root.querySelectorAll("input, textarea")) els.push(el);
+    for (const el of root.querySelectorAll("input, textarea, [contenteditable]:not([contenteditable='false'])")) els.push(el);
     for (const el of root.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
   };
   walk(document);
-  return els.map((e) => e.value).filter(Boolean).length;
+  return els.map((e) => e.value ?? e.textContent).filter((v) => v && v.trim()).length;
 });
-const loc = page.locator('button[type="submit"], input[type="submit"], form button').first();
+const loc = page.locator('form button[type="submit"], form input[type="submit"], form button:not([type])').first();
 submitting = true;
 await loc
   .evaluate((el) => {
@@ -298,7 +298,7 @@ await loc
   .catch(() => {});
 await page.waitForTimeout(wait);
 submitting = false;
-const doubleAttempts = posts + navs;
+const doubleAttempts = attempts;
 add(
   "doble envío",
   filled > 0 && doubleAttempts === 1,

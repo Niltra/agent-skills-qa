@@ -45,7 +45,7 @@ for (const name of skills) {
     console.log(`FALLO  ${name.padEnd(26)} ${problems.join("; ")}`);
   } else {
     ok++;
-    console.log(`ok     ${name.padEnd(26)} ${hasTest ? "motor funciona en copia limpia" : "procedimiento, sin motor"}`);
+    console.log(`ok     ${name.padEnd(26)} ${hasTest ? "motor funciona copiado (con las dependencias del repo)" : "procedimiento, sin motor"}`);
   }
 }
 

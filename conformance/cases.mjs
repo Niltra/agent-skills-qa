@@ -124,7 +124,7 @@ const contraste = [
     tool: "contraste-real",
     html: cPage(`<p style="background:linear-gradient(90deg,#f00,#00f);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">Solo degradado</p>`),
     args: [],
-    expect: { exit: 2, has: ["no medibles"], hasNot: ["ok:"] },
+    expect: { exit: 2, has: ["0 medidos no es todo correcto"], hasNot: ["ok:"] },
   },
   {
     name: "c-sin-texto",
@@ -218,6 +218,28 @@ const rompelayout = [
     expect: { exit: 1, has: ["de\\s+1", "fallo:"], hasNot: [] },
   },
   {
+    name: "r-ancestro-recorta",
+    tool: "rompelayout",
+    files: {
+      "es.html": `<!doctype html><html lang="es"><head><meta charset="utf-8"><style>
+        body{margin:20px;font:18px/1.5 "Segoe UI",sans-serif}
+        .card{width:160px;overflow:hidden;padding:8px}
+        .card p{white-space:nowrap;margin:0}
+      </style></head><body>
+      <div class="card"><p>Kurz</p></div>
+      </body></html>`,
+      "de.html": `<!doctype html><html lang="de"><head><meta charset="utf-8"><style>
+        body{margin:20px;font:18px/1.5 "Segoe UI",sans-serif}
+        .card{width:160px;overflow:hidden;padding:8px}
+        .card p{white-space:nowrap;margin:0}
+      </style></head><body>
+      <div class="card"><p>Geschwindigkeitsbegrenzung auf der Autobahn</p></div>
+      </body></html>`,
+    },
+    args: ["--locales", "es,de"],
+    expect: { exit: 1, has: ["clipped", "fallo:"] },
+  },
+  {
     name: "r-ancho-1280",
     tool: "rompelayout",
     files: { "es.html": pageVW("Corto"), "de.html": pageVW("Bundesausbildungsförderungsgesetz") },
@@ -242,7 +264,7 @@ const rompelayout = [
 
 // ---------- formulario-que-no-miente ----------
 
-const form = ({ label = true, autocomplete = true, validate = true, aria = true, guard = true } = {}) => `<!doctype html>
+const form = ({ label = true, autocomplete = true, validate = true, aria = true, guard = true, live = "aria-live" } = {}) => `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <style>body{font:16px/1.6 "Segoe UI",sans-serif;max-width:480px;margin:40px auto}label{display:block;margin-top:12px;font-size:14px}input{width:100%;padding:8px;margin-top:4px}.error{color:#b3261e;font-size:13px;min-height:16px}</style>
 </head><body>
@@ -259,7 +281,7 @@ const form = ({ label = true, autocomplete = true, validate = true, aria = true,
   <input id="tel" name="tel" type="tel" ${autocomplete ? 'autocomplete="tel"' : ""} ${aria ? 'aria-describedby="e3"' : ""}>
   <p class="error" id="e3"></p>
 
-  ${aria ? '<div id="live" aria-live="polite"></div>' : ""}
+  ${aria ? `<div id="live" ${live === "role" ? 'role="status"' : 'aria-live="polite"'}></div>` : ""}
   <button type="submit">Enviar</button>
 </form>
 <script>
@@ -382,6 +404,47 @@ const formulario = [
 </body></html>`,
     args: [],
     expect: { exit: 1, has: ["nombre accesible"], hasNot: ["no se encontraron campos"] },
+  },
+  {
+    name: "f-role-status",
+    tool: "formulario-que-no-miente",
+    html: form({ live: "role" }),
+    args: [],
+    expect: { exit: 0, has: ["7 de 7"], hasNot: ["FALLO"] },
+  },
+  {
+    name: "f-contenteditable",
+    tool: "formulario-que-no-miente",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<form id="f" novalidate>
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" autocomplete="email">
+  <label>Nombre</label>
+  <div contenteditable="true" aria-label="Nombre"></div>
+  <button type="submit">Enviar</button>
+</form>
+</body></html>`,
+    args: [],
+    expect: { exit: 1, has: ["2 campos"], hasNot: ["1 campos"] },
+  },
+  {
+    name: "f-fetch-get",
+    tool: "formulario-que-no-miente",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<form id="f" novalidate>
+  <label for="e">Email</label>
+  <input id="e" name="email" type="email" autocomplete="email">
+  <button type="submit">Enviar</button>
+</form>
+<script>
+  document.getElementById("f").addEventListener("submit", (e) => {
+    e.preventDefault();
+    fetch("https://example.com/colectar?email=" + encodeURIComponent(document.getElementById("e").value));
+  });
+</script>
+</body></html>`,
+    args: [],
+    expect: { exit: 1, has: ["FALLO  envío vacío bloqueado", "1 peticiones"] },
   },
   {
     name: "f-sin-campos",

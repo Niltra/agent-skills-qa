@@ -122,7 +122,12 @@ const wantsScroll = !(scroll === false || scroll === "false" || scroll === 0 || 
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width, height } });
-await page.goto(toUrl(url), { waitUntil: "load" });
+const response = await page.goto(toUrl(url), { waitUntil: "load" });
+if (response && response.status() >= 400) {
+  console.error(`no se audita una página con HTTP ${response.status()}: ${url}`);
+  await browser.close();
+  process.exit(2);
+}
 await page.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
 if (wantsScroll) {
   const h = await page.evaluate(() => document.documentElement.scrollHeight);
@@ -150,7 +155,10 @@ await browser.close();
 // ---------- parsear el arbol ----------
 
 const nodes = [];
-for (const line of snapshot.split("\n")) {
+for (const raw of snapshot.split("\n")) {
+  // YAML entrecomilla los nombres con ": " y el regex no los vería.
+  const quoted = raw.match(/^(\s*)- '(.*)'$/);
+  const line = quoted ? `${quoted[1]}- ${quoted[2].replace(/''/g, "'")}` : raw;
   const m = line.match(/^(\s*)- (\w+)(?: "((?:[^"\\]|\\.)*)")?(?: \[level=(\d)\])?/);
   if (!m) continue;
   nodes.push({

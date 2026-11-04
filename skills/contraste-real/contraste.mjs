@@ -90,9 +90,9 @@ function parse(argv) {
     largeBoldPx: Number(opts.largeBoldPx),
   };
   for (const k of ["width", "height", "maxItems", "settle", "largeTextPx", "largeBoldPx"]) {
-    if (!Number.isFinite(out[k]) || out[k] < 0) throw new Error(`--${k} inválido: ${out[k]}`);
+    if (!Number.isFinite(out[k]) || out[k] < 1) throw new Error(`--${k} inválido: ${out[k]}`);
   }
-  if (out.target !== null && (!Number.isFinite(out.target) || out.target <= 0)) {
+  if (out.target !== null && (!Number.isFinite(out.target) || out.target < 1)) {
     throw new Error(`--target inválido: ${opts.target}`);
   }
   return out;
@@ -170,7 +170,7 @@ const wantsScroll = !(scroll === false || scroll === "false" || scroll === 0 || 
 async function warmScroll() {
   if (!wantsScroll) return;
   const h = await page.evaluate(() => document.documentElement.scrollHeight);
-  const vh = page.viewportSize().height;
+  const vh = Math.max(1, page.viewportSize().height);
   for (let y = 0; y < Math.min(h, Number(maxScroll)); y += vh) {
     await page.evaluate((yy) => window.scrollTo(0, yy), y);
     await page.waitForTimeout(60);
@@ -193,12 +193,27 @@ const CANVAS = `(() => {
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
-await page.goto(toUrl(url), { waitUntil: "load" });
+const res = await page.goto(toUrl(url), { waitUntil: "load" });
+if (res && res.status() >= 400) throw new Error(`HTTP ${res.status()} en ${url}`);
 await page.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
 await warmScroll();
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(settle);
 const canvas = await page.evaluate(CANVAS).catch(() => 0);
+
+// ¿hay texto que no hemos podido recoger? (pseudo-elementos, display:contents)
+const hayTexto = await page
+  .evaluate(() => {
+    if ((document.body.innerText || "").trim().length > 0) return true;
+    for (const el of document.querySelectorAll("body *")) {
+      for (const pseudo of ["::before", "::after"]) {
+        const c = getComputedStyle(el, pseudo).content;
+        if (c && c !== "none" && c !== "normal" && c !== '""') return true;
+      }
+    }
+    return false;
+  })
+  .catch(() => false);
 
 const collected = await page.evaluate(COLLECT);
 const items = collected.items;
@@ -348,15 +363,9 @@ if (!measured.length) {
     console.error("mide el contraste de una captura a mano o exporta el texto fuera del canvas");
     process.exit(2);
   }
-  if (items.length) {
-    console.error(`no se pudo medir ningún texto de ${items.length} candidatos`);
-    console.error("el sitio resiste el ocultado del texto, o todo el texto está cubierto o animado");
-    process.exit(2);
-  }
-  if (collected.skipped > 0 || collected.transparent > 0) {
-    const n = collected.skipped + collected.transparent;
-    console.error(`los ${n} textos de la página se descartaron como no medibles (degradado, blend, opacidad)`);
-    console.error("no hay nada que aprobar: 0 medidos no es todo correcto");
+  if (items.length || collected.skipped > 0 || collected.transparent > 0 || hayTexto) {
+    console.error(`no se pudo medir ningún texto (${items.length} candidatos, ${collected.skipped + collected.transparent} descartados)`);
+    console.error("0 medidos no es todo correcto: revisa pseudo-elementos, iframes o contenido cubierto");
     process.exit(2);
   }
 }

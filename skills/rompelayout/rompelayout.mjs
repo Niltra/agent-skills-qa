@@ -76,13 +76,11 @@ const CHECK = `(() => {
     }
     const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 1);
     const text = el.textContent.replace(/\\s+/g, " ").trim().slice(0, 80);
-    if (own) {
-      if (clips && el.scrollWidth > el.clientWidth + 1) bad.push("clipped-x");
-      if ((s.overflowY === "hidden" || s.overflowY === "clip") && el.scrollHeight > el.clientHeight + 1) {
-        bad.push("clipped-y");
-      }
-      if (r.right > doc.clientWidth + 1 || r.left < -1) bad.push("viewport");
+    if (clips && el.scrollWidth > el.clientWidth + 1) bad.push("clipped-x");
+    if ((s.overflowY === "hidden" || s.overflowY === "clip") && el.scrollHeight > el.clientHeight + 1) {
+      bad.push("clipped-y");
     }
+    if (own && (r.right > doc.clientWidth + 1 || r.left < -1)) bad.push("viewport");
     if (bad.length) {
       el.setAttribute("data-rl", String(out.length));
       out.push({ id: out.length, path: path(el), sel: label(el), text, bad, ellipsis, w: Math.round(r.width) });
@@ -136,8 +134,8 @@ function parse(argv) {
     settle: Number(opts.settle),
     maxScroll: Number(opts.maxScroll),
   };
-  for (const k of ["width", "maxItems", "settle", "maxScroll"]) {
-    if (!Number.isFinite(out[k]) || out[k] < 0) throw new Error(`--${k} inválido: ${out[k]}`);
+  for (const [k, min] of [["width", 1], ["maxItems", 1], ["settle", 0], ["maxScroll", 0]]) {
+    if (!Number.isFinite(out[k]) || out[k] < min) throw new Error(`--${k} inválido: ${out[k]}`);
   }
   if (typeof out.out !== "string" || !out.out) throw new Error("--out necesita un nombre de carpeta");
   return out;
@@ -171,6 +169,11 @@ async function waitFonts(page) {
   await page.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
 }
 
+// content-visibility:auto deja secciones sin renderizar al volver arriba.
+async function revealAll(page) {
+  await page.addStyleTag({ content: "*,*::before,*::after{content-visibility:visible!important}" }).catch(() => {});
+}
+
 const CANVAS = `(() => {
   const vw = innerWidth, vh = innerHeight;
   let area = 0;
@@ -190,9 +193,11 @@ const page = await browser.newPage({ viewport: { width, height: 900 } });
 
 const report = [];
 for (const locale of locales) {
-  await page.goto(urlFor(url, locale), { waitUntil: "load" });
+  const res = await page.goto(urlFor(url, locale), { waitUntil: "load" });
+  if (res && res.status() >= 400) throw new Error(`HTTP ${res.status()} en ${urlFor(url, locale)}`);
   await waitFonts(page);
   await warmScroll(page);
+  await revealAll(page);
   await page.waitForTimeout(settle);
   let result;
   let canvas = 0;
@@ -236,6 +241,7 @@ for (const r of report) {
   await page.goto(urlFor(url, r.locale), { waitUntil: "load" });
   await waitFonts(page);
   await warmScroll(page);
+  await revealAll(page);
   await page.waitForTimeout(settle);
   const again = await page.evaluate(CHECK_CODE).catch(() => ({ items: [] }));
   const keys = new Set(r.freshHard.map((i) => i.path));
