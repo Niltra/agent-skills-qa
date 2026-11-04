@@ -1,0 +1,11 @@
+{
+  "out": "shots",
+  "width": 1280,
+  "height": 900,
+  "level": "AA",
+  "target": null,
+  "largeTextPx": 24,
+  "largeBoldPx": 18.66,
+  "maxItems": 30,
+  "settle": 300
+}

@@ -1,0 +1,12 @@
+{
+  "name": "rompelayout",
+  "version": "0.1.0",
+  "description": "Find where your UI breaks in other languages.",
+  "type": "module",
+  "bin": { "rompelayout": "./rompelayout.mjs" },
+  "files": ["rompelayout.mjs"],
+  "scripts": { "test": "node test.mjs" },
+  "peerDependencies": { "playwright": ">=1.40" },
+  "license": "MIT",
+  "keywords": ["i18n", "l10n", "layout", "playwright", "qa", "overflow", "cli"]
+}

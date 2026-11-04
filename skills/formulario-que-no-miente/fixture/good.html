@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Formulario que no miente</title>
+<style>
+  body { font: 16px/1.6 "Segoe UI", system-ui, sans-serif; max-width: 520px; margin: 48px auto; }
+  label { display: block; margin-top: 16px; font-size: 14px; }
+  input { width: 100%; padding: 10px; margin-top: 4px; border: 1px solid #c9c2b6; }
+  input[aria-invalid="true"] { border-color: #b3261e; }
+  button { margin-top: 20px; padding: 12px 20px; background: #14110f; color: #fff; border: 0; }
+  button:disabled { opacity: 0.6; }
+  .error { color: #b3261e; font-size: 13px; min-height: 18px; margin: 4px 0 0; }
+  .live { font-size: 13px; color: #4a443d; min-height: 18px; }
+</style>
+</head>
+<body>
+<h1>Contacto</h1>
+<form id="f" novalidate>
+  <label for="nombre">Nombre</label>
+  <input id="nombre" name="nombre" autocomplete="name" required aria-describedby="err-nombre">
+  <p class="error" id="err-nombre"></p>
+
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" autocomplete="email" required aria-describedby="err-email">
+  <p class="error" id="err-email"></p>
+
+  <label for="tel">Teléfono</label>
+  <input id="tel" name="tel" type="tel" autocomplete="tel" required aria-describedby="err-tel">
+  <p class="error" id="err-tel"></p>
+
+  <div class="live" id="live" aria-live="polite"></div>
+  <button type="submit">Enviar</button>
+</form>
+<script>
+  const form = document.getElementById("f");
+  const live = document.getElementById("live");
+  const errFor = { nombre: "err-nombre", email: "err-email", tel: "err-tel" };
+  const fields = [...form.querySelectorAll("input")];
+  let sending = false;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (sending) return;
+
+    let first = null;
+    for (const el of fields) {
+      const v = el.value.trim();
+      let msg = "";
+      if (!v) msg = "Este campo es obligatorio";
+      else if (el.type === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) msg = "El email no es válido";
+      el.setAttribute("aria-invalid", msg ? "true" : "false");
+      document.getElementById(errFor[el.name]).textContent = msg;
+      if (msg && !first) first = el;
+    }
+
+    live.textContent = first ? "Revisa los campos marcados en rojo" : "";
+    if (first) {
+      first.focus();
+      return;
+    }
+
+    sending = true;
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    await fetch("https://example.com/api/enviar", { method: "POST", body: "{}" });
+    sending = false;
+    btn.disabled = false;
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+node_modules/
+shots/
+shots-test/
+shots-test-ok/
+shots-cfg/
+launch-out/
+__pycache__/
+PROMO.md
+promo/
+tools/skill-launch/demo/

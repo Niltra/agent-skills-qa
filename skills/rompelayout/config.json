@@ -1,0 +1,8 @@
+{
+  "locales": ["es", "en", "de"],
+  "width": 1280,
+  "out": "shots",
+  "base": null,
+  "maxItems": 40,
+  "settle": 120
+}
