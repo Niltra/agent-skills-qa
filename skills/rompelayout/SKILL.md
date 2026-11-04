@@ -62,6 +62,8 @@ Código de salida 1 si un idioma que no es el base rompe. El primero de `--local
 
 ## Límites honestos
 
+- Recorre la página antes de medir, para que aparezca el contenido que depende del scroll.
+- El contenido dentro de un `<canvas>` (3D/WebGL) no se puede medir: se informa del porcentaje de pantalla que ocupa.
 - No traduce. Le das la URL de cada idioma ya traducida.
 - Solo ve el estado inicial de la página: no abre modales, menús ni hover.
 - Un texto que se desborda *sin* recorte no lo marca. Solo detecta recorte, escape de contenedor y salida de viewport.

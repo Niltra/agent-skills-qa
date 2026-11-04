@@ -91,6 +91,28 @@ const contraste = [
     expect: { exit: 1, has: ["texto invisible", "fallo:"] },
   },
   {
+    name: "c-canvas",
+    tool: "contraste-real",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"><style>html,body{margin:0;height:100%}</style></head><body><canvas id="gl" width="1280" height="900" style="width:100vw;height:100vh;display:block;background:#000"></canvas></body></html>`,
+    args: [],
+    expect: { exit: 2, has: ["canvas"], hasNot: ["ok:"] },
+  },
+  {
+    name: "c-scroll-revela-texto",
+    tool: "contraste-real",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<div style="height:3000px"></div>
+<p id="oculto" style="visibility:hidden;color:#000">Aparece al hacer scroll</p>
+<script>
+  new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) document.getElementById("oculto").style.visibility = "visible";
+  }).observe(document.getElementById("oculto"));
+</script>
+</body></html>`,
+    args: [],
+    expect: { exit: 0, has: ["1 textos medidos"], hasNot: ["fallo:"] },
+  },
+  {
     name: "c-sin-texto",
     tool: "contraste-real",
     html: cPage(`<div style="width:200px;height:80px;background:#eee"></div>`),
@@ -156,6 +178,30 @@ const rompelayout = [
     },
     args: ["--locales", "es,de"],
     expect: { exit: 0, has: ["0\\s+0", "ok:"], hasNot: ["fallo:"] },
+  },
+  {
+    name: "r-scroll-revela",
+    tool: "rompelayout",
+    files: {
+      "es.html": `<!doctype html><html lang="es"><head><meta charset="utf-8"><style>
+        body{margin:20px;font:20px/1.5 "Segoe UI",sans-serif}
+        .caja{width:140px;overflow:hidden;white-space:nowrap;border:1px solid #ccc;visibility:hidden}
+      </style></head><body>
+      <div style="height:3000px"></div>
+      <div class="caja" id="tarde"><span>iii</span></div>
+      <script>new IntersectionObserver((es)=>{for(const e of es) if(e.isIntersecting) document.getElementById("tarde").style.visibility="visible"}).observe(document.getElementById("tarde"))</script>
+      </body></html>`,
+      "de.html": `<!doctype html><html lang="de"><head><meta charset="utf-8"><style>
+        body{margin:20px;font:20px/1.5 "Segoe UI",sans-serif}
+        .caja{width:140px;overflow:hidden;white-space:nowrap;border:1px solid #ccc;visibility:hidden}
+      </style></head><body>
+      <div style="height:3000px"></div>
+      <div class="caja" id="tarde"><span>WWWWWWWWWWWWWWWW</span></div>
+      <script>new IntersectionObserver((es)=>{for(const e of es) if(e.isIntersecting) document.getElementById("tarde").style.visibility="visible"}).observe(document.getElementById("tarde"))</script>
+      </body></html>`,
+    },
+    args: ["--locales", "es,de"],
+    expect: { exit: 1, has: ["de\\s+1", "fallo:"], hasNot: [] },
   },
   {
     name: "r-ancho-1280",

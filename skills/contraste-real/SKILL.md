@@ -65,6 +65,8 @@ En orden: oscurecer el overlay hasta que el peor píxel pase; mover el texto fue
 
 ## Límites honestos
 
+- Recorre la página antes de medir, para que aparezca el contenido que depende del scroll.
+- Si el texto vive dentro de un `<canvas>` (3D/WebGL) no existe en el DOM: se informa del porcentaje de pantalla que ocupa y, si no hay nada más que medir, sale con código 2.
 - Solo mide texto presente en el DOM en ese momento: no estados hover, modales ni carruseles.
 - Necesita que el texto cambie entre la captura con texto y sin texto. Si no cambia (texto tapado), no se mide.
 - El texto invisible (mismo color que el fondo) sí se detecta: compara el color del texto con el color dominante de su caja.

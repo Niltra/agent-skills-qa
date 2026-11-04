@@ -25,6 +25,8 @@ const DEFAULTS = {
   largeBoldPx: 18.66,
   maxItems: 30,
   settle: 300,
+  scroll: true,
+  maxScroll: 16000,
 };
 
 const THRESHOLDS = {
@@ -134,15 +136,44 @@ const COLLECT = `(() => {
 
 const hex = (c) => "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
 
-const { url, out, width, height, level, target, largeTextPx, largeBoldPx, maxItems, settle } =
+const { url, out, width, height, level, target, largeTextPx, largeBoldPx, maxItems, settle, scroll, maxScroll } =
   parse(process.argv.slice(2));
 const thresholds = THRESHOLDS[level];
+
+const wantsScroll = !(scroll === false || scroll === "false" || scroll === 0 || scroll === "0");
+
+// Los sitios con animaciones al hacer scroll no existen hasta que se recorre la página.
+async function warmScroll() {
+  if (!wantsScroll) return;
+  const h = await page.evaluate(() => document.documentElement.scrollHeight);
+  const vh = page.viewportSize().height;
+  for (let y = 0; y < Math.min(h, Number(maxScroll)); y += vh) {
+    await page.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page.waitForTimeout(60);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+}
+
+const CANVAS = `(() => {
+  const vw = innerWidth, vh = innerHeight;
+  let area = 0;
+  for (const c of document.querySelectorAll("canvas")) {
+    const r = c.getBoundingClientRect();
+    if (r.width < 10 || r.height < 10) continue;
+    const w = Math.min(r.right, vw) - Math.max(r.left, 0);
+    const h = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+    if (w > 0 && h > 0) area += w * h;
+  }
+  return Math.min(1, area / (vw * vh));
+})()`;
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
 await page.goto(toUrl(url), { waitUntil: "load" });
+await warmScroll();
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(settle);
+const canvas = await page.evaluate(CANVAS).catch(() => 0);
 
 const collected = await page.evaluate(COLLECT);
 const items = collected.items;
@@ -277,6 +308,11 @@ const totalSkipped = collected.skipped + measuredResult.skipped;
 const offCap = measuredResult.offCap;
 
 // "Nada medido" no es "todo correcto".
+if (!measured.length && canvas > 0.6) {
+  console.error(`el ${Math.round(canvas * 100)}% de la ventana es canvas (3D/WebGL): no hay texto en el DOM que medir`);
+  console.error("mide el contraste de una captura a mano o exporta el texto fuera del canvas");
+  process.exit(2);
+}
 if (!measured.length && items.length) {
   console.error(`no se pudo medir ningún texto de ${items.length} candidatos`);
   console.error("el sitio resiste el ocultado del texto, o todo el texto está cubierto o animado");
@@ -318,6 +354,7 @@ if (fails.length) {
 
 console.log(`\ncontraste ${level}: ${thresholds.normal}:1 normal, ${thresholds.large}:1 grande${target ? `, objetivo ${target}:1` : ""}`);
 console.log(`${measured.length} textos medidos, ${fails.length} por debajo, ${totalSkipped} no medibles`);
+if (canvas > 0.3) console.log(`aviso: el ${Math.round(canvas * 100)}% de la ventana es canvas (3D/WebGL), eso no se mide`);
 if (offCap) console.log(`${offCap} fuera de la captura (página de ${pageHeight} px, se mide hasta ${CAP})`);
 if (measuredResult.bounds) console.log(`${measuredResult.bounds} descartados por coordenadas fuera de la imagen`);
 console.log("");

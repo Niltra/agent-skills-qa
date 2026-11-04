@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const DEFAULTS = { locales: ["es", "en", "de"], width: 1280, out: "shots", base: null, maxItems: 40, settle: 120 };
+const DEFAULTS = { locales: ["es", "en", "de"], width: 1280, out: "shots", base: null, maxItems: 40, settle: 120, scroll: true, maxScroll: 16000 };
 
 function readConfig(file) {
   if (!file) return {};
@@ -125,9 +125,36 @@ function urlFor(template, locale) {
   return pathToFileURL(resolve(filled)).href;
 }
 
-const { url, locales, width, out, base, maxItems, settle } = parse(process.argv.slice(2));
+const { url, locales, width, out, base, maxItems, settle, scroll, maxScroll } = parse(process.argv.slice(2));
 const baseLocale = base || locales[0];
 const CHECK_CODE = CHECK.replace("__MAX__", String(maxItems));
+
+const wantsScroll = !(scroll === false || scroll === "false" || scroll === 0 || scroll === "0");
+
+// Los sitios con animaciones al hacer scroll no existen hasta que se recorre la página.
+async function warmScroll(page) {
+  if (!wantsScroll) return;
+  const h = await page.evaluate(() => document.documentElement.scrollHeight);
+  const vh = page.viewportSize().height;
+  for (let y = 0; y < Math.min(h, Number(maxScroll)); y += vh) {
+    await page.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page.waitForTimeout(60);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+}
+
+const CANVAS = `(() => {
+  const vw = innerWidth, vh = innerHeight;
+  let area = 0;
+  for (const c of document.querySelectorAll("canvas")) {
+    const r = c.getBoundingClientRect();
+    if (r.width < 10 || r.height < 10) continue;
+    const w = Math.min(r.right, vw) - Math.max(r.left, 0);
+    const h = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+    if (w > 0 && h > 0) area += w * h;
+  }
+  return Math.min(1, area / (vw * vh));
+})()`;
 
 mkdirSync(out, { recursive: true });
 const browser = await chromium.launch();
@@ -136,14 +163,19 @@ const page = await browser.newPage({ viewport: { width, height: 900 } });
 const report = [];
 for (const locale of locales) {
   await page.goto(urlFor(url, locale), { waitUntil: "load" });
+  await warmScroll(page);
   await page.waitForTimeout(settle);
   let result;
+  let canvas = 0;
+  try {
+    canvas = await page.evaluate(CANVAS);
+  } catch {}
   try {
     result = await page.evaluate(CHECK_CODE);
   } catch {
     result = { items: [], pageScroll: false, error: true };
   }
-  report.push({ locale, ...result });
+  report.push({ locale, canvas, ...result });
 }
 
 // Lo que ya está roto en el idioma base no lo causa la traducción: se descuenta.
@@ -173,6 +205,7 @@ for (const r of report) {
 for (const r of report) {
   if (!r.freshHard.length && !r.freshScroll) continue;
   await page.goto(urlFor(url, r.locale), { waitUntil: "load" });
+  await warmScroll(page);
   await page.waitForTimeout(settle);
   const again = await page.evaluate(CHECK_CODE).catch(() => ({ items: [] }));
   const keys = new Set(r.freshHard.map((i) => i.path));
@@ -222,6 +255,10 @@ for (const r of report) {
 }
 const soft = report.reduce((n, r) => n + r.freshSoft.length, 0);
 if (soft) console.log(`\n${soft} recortes con ellipsis: puede ser intencionado, revisar a ojo.`);
+const canvasMax = Math.max(...report.map((r) => r.canvas || 0));
+if (canvasMax > 0.3) {
+  console.log(`\n${Math.round(canvasMax * 100)}% de la ventana es canvas: el contenido 3D no se puede medir.`);
+}
 console.log("");
 if (failed) {
   const broken = report.filter((r) => r.freshHard.length + (r.freshScroll ? 1 : 0) > 0 && r.locale !== baseLocale).map((r) => r.locale);
