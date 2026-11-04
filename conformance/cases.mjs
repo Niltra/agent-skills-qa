@@ -113,6 +113,20 @@ const contraste = [
     expect: { exit: 0, has: ["1 textos medidos"], hasNot: ["fallo:"] },
   },
   {
+    name: "c-alfa",
+    tool: "contraste-real",
+    html: cPage(`<p style="color:rgba(0,0,0,0.35)">Texto con alfa</p>`),
+    args: [],
+    expect: { exit: 1, has: ["2.4", "fallo:"] },
+  },
+  {
+    name: "c-solo-degradado",
+    tool: "contraste-real",
+    html: cPage(`<p style="background:linear-gradient(90deg,#f00,#00f);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">Solo degradado</p>`),
+    args: [],
+    expect: { exit: 2, has: ["no medibles"], hasNot: ["ok:"] },
+  },
+  {
     name: "c-sin-texto",
     tool: "contraste-real",
     html: cPage(`<div style="width:200px;height:80px;background:#eee"></div>`),
@@ -319,6 +333,41 @@ const formulario = [
     html: form({ validate: false, aria: false }),
     args: [],
     expect: { exit: 1, has: ["FALLO  envío vacío"], hasNot: [] },
+  },
+  {
+    name: "f-get",
+    tool: "formulario-que-no-miente",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<form method="get" action="/captura" novalidate>
+  <label for="e">Email</label>
+  <input id="e" name="email" type="email" autocomplete="email">
+  <button type="submit">Enviar</button>
+</form>
+</body></html>`,
+    args: [],
+    expect: { exit: 1, has: ["FALLO  envío vacío bloqueado"], hasNot: [] },
+  },
+  {
+    name: "f-select-vacio",
+    tool: "formulario-que-no-miente",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<form id="f" novalidate>
+  <label for="p">País</label>
+  <select id="p" name="pais" autocomplete="country"><option value="">Elige</option><option value="es">España</option></select>
+  <label for="e"></label>
+  <input id="e" name="email" aria-label="Email" type="email" autocomplete="email">
+  <button type="submit">Enviar</button>
+</form>
+<script>
+  document.getElementById("f").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const ok = [...document.querySelectorAll("select, input")].every((el) => el.value.trim());
+    if (ok) fetch("/x", { method: "POST" });
+  });
+</script>
+</body></html>`,
+    args: [],
+    expect: { exit: 1, has: ["OK     envío vacío bloqueado", "OK     nombre accesible"], hasNot: ["FALLO  envío vacío", "FALLO  nombre accesible"] },
   },
   {
     name: "f-sin-campos",

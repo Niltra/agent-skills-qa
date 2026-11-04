@@ -54,7 +54,7 @@ assert.doesNotMatch(cfg.stdout, /de\s+3/, "the config locales were ignored");
 assert.notEqual(run("./fixture/{locale}.html", "--config", "nope.json").status, 0);
 
 // 6. A page with no text at all is not a failure, and must not crash.
-const empty = run("./fixture/vacio.html", "--locales", "es,de", "--out", "shots-test");
+const empty = run("./fixture/vacio.html", "--locales", "es", "--out", "shots-test");
 assert.equal(empty.status, 0, empty.stdout + empty.stderr);
 assert.match(empty.stdout, /es\s+0\s+0\s+0/);
 

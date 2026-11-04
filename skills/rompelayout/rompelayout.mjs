@@ -12,6 +12,12 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+process.on("uncaughtException", (e) => {
+  console.error(`error: ${e.message}`);
+  if (process.env.DEBUG) console.error(e.stack);
+  process.exit(2);
+});
+
 const DEFAULTS = { locales: ["es", "en", "de"], width: 1280, out: "shots", base: null, maxItems: 40, settle: 120, scroll: true, maxScroll: 16000 };
 
 function readConfig(file) {
@@ -94,8 +100,15 @@ function parse(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith("--")) {
-      const [k, v] = a.slice(2).split("=");
-      flags[k] = v ?? argv[++i];
+      const eq = a.indexOf("=");
+      const k = eq === -1 ? a.slice(2) : a.slice(2, eq);
+      if (eq !== -1) {
+        flags[k] = a.slice(eq + 1);
+      } else {
+        const next = argv[i + 1];
+        if (next === undefined || next.startsWith("--")) throw new Error(`--${k} necesita un valor`);
+        flags[k] = argv[++i];
+      }
     } else url = a;
   }
   const { config, ...overrides } = flags;
@@ -109,14 +122,25 @@ function parse(argv) {
     if (!(k in DEFAULTS)) throw new Error(`flag desconocido --${k}`);
   }
   if (!url) throw new Error("uso: rompelayout <url-o-ruta-con-{locale}> --locales es,en,de");
-  return {
+  const list = Array.isArray(opts.locales) ? opts.locales : String(opts.locales).split(",").map((s) => s.trim()).filter(Boolean);
+  if (!list.length) throw new Error("--locales no puede estar vacío");
+  if (list.length > 1 && !url.includes("{locale}")) {
+    throw new Error("la URL no contiene {locale}: todos los idiomas cargarían la misma página");
+  }
+  const out = {
     url,
     ...opts,
-    locales: Array.isArray(opts.locales) ? opts.locales : String(opts.locales).split(",").map((s) => s.trim()).filter(Boolean),
+    locales: list,
     width: Number(opts.width),
     maxItems: Number(opts.maxItems),
     settle: Number(opts.settle),
+    maxScroll: Number(opts.maxScroll),
   };
+  for (const k of ["width", "maxItems", "settle", "maxScroll"]) {
+    if (!Number.isFinite(out[k]) || out[k] < 0) throw new Error(`--${k} inválido: ${out[k]}`);
+  }
+  if (typeof out.out !== "string" || !out.out) throw new Error("--out necesita un nombre de carpeta");
+  return out;
 }
 
 function urlFor(template, locale) {
@@ -258,6 +282,11 @@ if (soft) console.log(`\n${soft} recortes con ellipsis: puede ser intencionado, 
 const canvasMax = Math.max(...report.map((r) => r.canvas || 0));
 if (canvasMax > 0.3) {
   console.log(`\n${Math.round(canvasMax * 100)}% de la ventana es canvas: el contenido 3D no se puede medir.`);
+}
+const unmeasured = report.filter((r) => r.error).map((r) => r.locale);
+if (unmeasured.length) {
+  console.log(`\nfallo: no se pudo medir ${unmeasured.join(", ")}. Sin medición no hay veredicto.`);
+  process.exit(2);
 }
 console.log("");
 if (failed) {

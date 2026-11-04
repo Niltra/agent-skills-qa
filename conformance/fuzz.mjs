@@ -95,6 +95,15 @@ for (let page = 0; page < PAGES; page++) {
     console.error(`la pagina ${page} no produjo una medicion valida:\n${out.split("\n").slice(0, 6).join("\n")}`);
     process.exit(2);
   }
+  if (res.status !== 0 && res.status !== 1) {
+    console.error(`la pagina ${page} salio con ${res.status}: un crash no es un acierto`);
+    process.exit(2);
+  }
+  const measured = Number((out.match(/(\d+) textos medidos/) || [])[1]);
+  if (measured !== BLOCKS) {
+    console.error(`la pagina ${page} midio ${measured} de ${BLOCKS} bloques: el fuzz no puede contar los que faltan`);
+    process.exit(2);
+  }
 
   for (const b of blocks) {
     if (b.borderline) { skipped++; continue; }

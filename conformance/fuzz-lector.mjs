@@ -111,8 +111,8 @@ ${blocks.join("\n")}
     timeout: 120000,
   });
   const out = (res.stdout || "") + (res.stderr || "");
-  if (!/LO QUE OYE/.test(out)) {
-    console.error(`la pagina ${p} no produjo transcripcion:\n${out.split("\n").slice(0, 6).join("\n")}`);
+  if (!/LO QUE OYE/.test(out) || (res.status !== 0 && res.status !== 1)) {
+    console.error(`la pagina ${p} no produjo transcripcion (exit ${res.status}):\n${out.split("\n").slice(0, 6).join("\n")}`);
     process.exit(2);
   }
 

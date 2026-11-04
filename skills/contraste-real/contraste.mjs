@@ -14,6 +14,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+process.on("uncaughtException", (e) => {
+  console.error(`error: ${e.message}`);
+  if (process.env.DEBUG) console.error(e.stack);
+  process.exit(2);
+});
+
 const DEFAULTS = {
   url: null,
   out: "shots",
@@ -46,8 +52,15 @@ function parse(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith("--")) {
-      const [k, v] = a.slice(2).split("=");
-      flags[k] = v ?? argv[++i];
+      const eq = a.indexOf("=");
+      const k = eq === -1 ? a.slice(2) : a.slice(2, eq);
+      if (eq !== -1) {
+        flags[k] = a.slice(eq + 1);
+      } else {
+        const next = argv[i + 1];
+        if (next === undefined || next.startsWith("--")) throw new Error(`--${k} necesita un valor`);
+        flags[k] = argv[++i];
+      }
     } else url = a;
   }
   const { config, ...overrides } = flags;
@@ -64,7 +77,7 @@ function parse(argv) {
   if (!url) throw new Error("uso: contraste <url-o-ruta> [--level AA|AAA] [--out shots]");
   const level = String(opts.level).toUpperCase();
   if (!THRESHOLDS[level]) throw new Error(`level debe ser AA o AAA, no ${opts.level}`);
-  return {
+  const out = {
     ...opts,
     url,
     level,
@@ -73,7 +86,16 @@ function parse(argv) {
     height: Number(opts.height),
     maxItems: Number(opts.maxItems),
     settle: Number(opts.settle),
+    largeTextPx: Number(opts.largeTextPx),
+    largeBoldPx: Number(opts.largeBoldPx),
   };
+  for (const k of ["width", "height", "maxItems", "settle", "largeTextPx", "largeBoldPx"]) {
+    if (!Number.isFinite(out[k]) || out[k] < 0) throw new Error(`--${k} inválido: ${out[k]}`);
+  }
+  if (out.target !== null && (!Number.isFinite(out.target) || out.target <= 0)) {
+    throw new Error(`--target inválido: ${opts.target}`);
+  }
+  return out;
 }
 
 const toUrl = (u) => (/^https?:\/\//.test(u) ? u : pathToFileURL(resolve(u)).href);
@@ -81,6 +103,7 @@ const toUrl = (u) => (/^https?:\/\//.test(u) ? u : pathToFileURL(resolve(u)).hre
 const COLLECT = `(() => {
   const out = [];
   let skipped = 0;
+  let transparent = 0;
   const label = (el) => {
     const parts = [];
     for (let n = el; n && n.nodeType === 1 && parts.length < 4; n = n.parentElement) {
@@ -98,7 +121,7 @@ const COLLECT = `(() => {
     if (!own) continue;
     const s = getComputedStyle(el);
     if (s.visibility === "hidden" || s.display === "none" || Number(s.opacity) === 0) continue;
-    if (s.color === "rgba(0, 0, 0, 0)" || s.webkitTextFillColor === "rgba(0, 0, 0, 0)") continue;
+    if (s.color === "rgba(0, 0, 0, 0)" || s.webkitTextFillColor === "rgba(0, 0, 0, 0)") { transparent++; continue; }
     // texto con degradado recortado a las letras: el color calculado no es el color pintado
     const clip = s.webkitBackgroundClip || s.backgroundClip;
     if (clip === "text" && s.backgroundImage && s.backgroundImage !== "none") { skipped++; continue; }
@@ -123,6 +146,7 @@ const COLLECT = `(() => {
       sel: label(el),
       text: own.replace(/\\s+/g, " ").slice(0, 70),
       color: m.slice(0, 3).map(Number),
+      alpha: m.length > 3 ? Number(m[3]) : 1,
       size: parseFloat(s.fontSize),
       weight: Number(s.fontWeight) || 400,
       x: r.left + window.scrollX,
@@ -131,7 +155,7 @@ const COLLECT = `(() => {
       h: r.height,
     });
   }
-  return { items: out, skipped };
+  return { items: out, skipped, transparent };
 })()`;
 
 const hex = (c) => "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
@@ -243,6 +267,7 @@ const measuredResult = await measurePage.evaluate(
       const dv = V.ctx.getImageData(sx, sy, sw, sh).data;
       const dh = H.ctx.getImageData(sx, sy, sw, sh).data;
       const L1 = lum(it.color[0], it.color[1], it.color[2]);
+      const alpha = typeof it.alpha === "number" ? it.alpha : 1;
       const large = it.size >= largeTextPx || (it.size >= largeBoldPx && it.weight >= 700);
       let worst = 22, bg = [0, 0, 0], ink = 0;
       for (let i = 0; i < dv.length; i += 4) {
@@ -252,8 +277,13 @@ const measuredResult = await measurePage.evaluate(
         if (diff <= 24) continue;
         ink++;
         if (dh[i + 3] < 250) continue;
+        // con alfa, el color del texto se mezcla con el fondo real de ese píxel
+        const fr = alpha >= 1 ? it.color[0] : alpha * it.color[0] + (1 - alpha) * dh[i];
+        const fg = alpha >= 1 ? it.color[1] : alpha * it.color[1] + (1 - alpha) * dh[i + 1];
+        const fb = alpha >= 1 ? it.color[2] : alpha * it.color[2] + (1 - alpha) * dh[i + 2];
+        const L1eff = alpha >= 1 ? L1 : lum(fr, fg, fb);
         const L2 = lum(dh[i], dh[i + 1], dh[i + 2]);
-        const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+        const ratio = (Math.max(L1eff, L2) + 0.05) / (Math.min(L1eff, L2) + 0.05);
         if (ratio < worst) {
           worst = ratio;
           bg = [dh[i], dh[i + 1], dh[i + 2]];
@@ -308,15 +338,23 @@ const totalSkipped = collected.skipped + measuredResult.skipped;
 const offCap = measuredResult.offCap;
 
 // "Nada medido" no es "todo correcto".
-if (!measured.length && canvas > 0.6) {
-  console.error(`el ${Math.round(canvas * 100)}% de la ventana es canvas (3D/WebGL): no hay texto en el DOM que medir`);
-  console.error("mide el contraste de una captura a mano o exporta el texto fuera del canvas");
-  process.exit(2);
-}
-if (!measured.length && items.length) {
-  console.error(`no se pudo medir ningún texto de ${items.length} candidatos`);
-  console.error("el sitio resiste el ocultado del texto, o todo el texto está cubierto o animado");
-  process.exit(2);
+if (!measured.length) {
+  if (canvas > 0.6) {
+    console.error(`el ${Math.round(canvas * 100)}% de la ventana es canvas (3D/WebGL): no hay texto en el DOM que medir`);
+    console.error("mide el contraste de una captura a mano o exporta el texto fuera del canvas");
+    process.exit(2);
+  }
+  if (items.length) {
+    console.error(`no se pudo medir ningún texto de ${items.length} candidatos`);
+    console.error("el sitio resiste el ocultado del texto, o todo el texto está cubierto o animado");
+    process.exit(2);
+  }
+  if (collected.skipped > 0 || collected.transparent > 0) {
+    const n = collected.skipped + collected.transparent;
+    console.error(`los ${n} textos de la página se descartaron como no medibles (degradado, blend, opacidad)`);
+    console.error("no hay nada que aprobar: 0 medidos no es todo correcto");
+    process.exit(2);
+  }
 }
 
 const fails = measured

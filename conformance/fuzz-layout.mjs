@@ -77,8 +77,8 @@ for (let p = 0; p < PAGES; p++) {
     { cwd: TMP, encoding: "utf8", timeout: 120000 },
   );
   const out = (res.stdout || "") + (res.stderr || "");
-  if (!/locale/.test(out)) {
-    console.error(`la pagina ${p} no midio:\n${out.split("\n").slice(0, 6).join("\n")}`);
+  if (!/locale/.test(out) || (res.status !== 0 && res.status !== 1)) {
+    console.error(`la pagina ${p} no midio (exit ${res.status}):\n${out.split("\n").slice(0, 6).join("\n")}`);
     process.exit(2);
   }
 

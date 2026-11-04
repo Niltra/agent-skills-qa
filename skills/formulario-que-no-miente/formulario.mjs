@@ -14,6 +14,12 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+process.on("uncaughtException", (e) => {
+  console.error(`error: ${e.message}`);
+  if (process.env.DEBUG) console.error(e.stack);
+  process.exit(2);
+});
+
 const DEFAULTS = { url: null, out: "shots", width: 1280, height: 900, wait: 700, settle: 250 };
 
 function readConfig(file, required = true) {
@@ -31,8 +37,15 @@ function parse(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith("--")) {
-      const [k, v] = a.slice(2).split("=");
-      flags[k] = v ?? argv[++i];
+      const eq = a.indexOf("=");
+      const k = eq === -1 ? a.slice(2) : a.slice(2, eq);
+      if (eq !== -1) {
+        flags[k] = a.slice(eq + 1);
+      } else {
+        const next = argv[i + 1];
+        if (next === undefined || next.startsWith("--")) throw new Error(`--${k} necesita un valor`);
+        flags[k] = argv[++i];
+      }
     } else url = a;
   }
   const { config, ...overrides } = flags;
@@ -40,7 +53,19 @@ function parse(argv) {
   for (const k of Object.keys(overrides)) if (!(k in DEFAULTS)) throw new Error(`flag desconocido --${k}`);
   if (!url) url = opts.url;
   if (!url) throw new Error("uso: formulario <url-o-ruta> [--out shots]");
-  return { ...opts, url, width: Number(opts.width), height: Number(opts.height), wait: Number(opts.wait), settle: Number(opts.settle) };
+  const out = {
+    ...opts,
+    url,
+    width: Number(opts.width),
+    height: Number(opts.height),
+    wait: Number(opts.wait),
+    settle: Number(opts.settle),
+  };
+  for (const k of ["width", "height", "wait", "settle"]) {
+    if (!Number.isFinite(out[k]) || out[k] < 0) throw new Error(`--${k} inválido: ${out[k]}`);
+  }
+  if (typeof out.out !== "string" || !out.out) throw new Error("--out necesita un nombre de carpeta");
+  return out;
 }
 
 const toUrl = (u) => (/^https?:\/\//.test(u) ? u : pathToFileURL(resolve(u)).href);
@@ -52,16 +77,18 @@ const FIELDS = `(() => {
     if (["submit", "button", "reset", "image", "file", "hidden"].includes(t)) continue;
     if (el.disabled) continue;
     const label = el.labels && el.labels.length
-      ? el.labels[0].innerText.trim()
-      : (el.getAttribute("aria-label") ||
-         (el.getAttribute("aria-labelledby")
-           ? (document.getElementById(el.getAttribute("aria-labelledby")) || {}).innerText
-           : "") ||
-         el.getAttribute("title") || "").trim();
+      ? (el.labels[0].innerText || "").trim()
+      : "";
+    const named = label ||
+      (el.getAttribute("aria-label") || "").trim() ||
+      (el.getAttribute("aria-labelledby")
+        ? (document.getElementById(el.getAttribute("aria-labelledby")) || {}).innerText || ""
+        : "").trim() ||
+      (el.getAttribute("title") || "").trim();
     out.push({
       name: el.getAttribute("name") || el.id || el.tagName.toLowerCase(),
       type: t,
-      label: (label || "").trim(),
+      label: (named || "").trim(),
       autocomplete: (el.getAttribute("autocomplete") || "").toLowerCase(),
       required: el.required === true || el.getAttribute("aria-required") === "true",
     });
@@ -90,12 +117,16 @@ function setValues(value) {
       el.dispatchEvent(new Event("change", { bubbles: true }));
       continue;
     }
+    if (value === "__empty__") {
+      if (el.tagName === "SELECT") setNative(el, "");
+      else setNative(el, "");
+      continue;
+    }
     if (el.tagName === "SELECT") {
       const opts = [...el.options].filter((o) => o.value !== "");
       if (opts.length) setNative(el, opts[Math.min(1, opts.length - 1)].value);
       continue;
     }
-    if (value === "__empty__") { setNative(el, ""); continue; }
     const sample =
       t === "email" ? "prueba@example.com" :
       t === "tel" ? "600123456" :
@@ -123,10 +154,13 @@ const STATE = `(() => ({
 const { url, out, width, height, wait, settle } = parse(process.argv.slice(2));
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width, height } });
+// sin service workers: se saltan page.route y el formulario saldría a la red de verdad
+const page = await browser.newPage({ viewport: { width, height }, serviceWorkers: "block" });
 
 let posts = 0;
 let navs = 0;
+let submitting = false;
+let loading = false;
 const reset = () => { posts = 0; navs = 0; };
 
 await page.route("**/*", async (route) => {
@@ -135,18 +169,42 @@ await page.route("**/*", async (route) => {
     posts++;
     return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   }
+  // un formulario GET navega con los datos: se corta para no enviarlos de verdad.
+  // Las navegaciones que hacemos nosotros (load) no se tocan.
+  if (!loading && submitting && req.method() === "GET" && req.resourceType() === "document") {
+    navs++;
+    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>cortado</title>" });
+  }
   return route.continue();
 });
-page.on("framenavigated", (f) => { if (f === page.mainFrame()) navs++; });
 
 const load = async () => {
-  await page.goto(toUrl(url), { waitUntil: "load" });
+  loading = true;
+  try {
+    await page.goto(toUrl(url), { waitUntil: "load" });
+  } finally {
+    loading = false;
+  }
   await page.waitForTimeout(settle);
 };
 
-const submit = () => {
+const submit = async () => {
   const loc = page.locator('button[type="submit"], input[type="submit"], form button').first();
-  return loc.click({ timeout: 3000 }).catch(() => {});
+  try {
+    await loc.click({ timeout: 3000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Ejecuta un envío y devuelve los intentos contados y si el botón se pudo pulsar. */
+const attempt = async () => {
+  submitting = true;
+  const clicked = await submit();
+  await page.waitForTimeout(wait);
+  submitting = false;
+  return { attempts: posts + navs, clicked };
 };
 
 await load();
@@ -166,12 +224,13 @@ add("nombre accesible", nameless.length === 0, nameless.length ? nameless.map((f
 // 2. envío vacío bloqueado
 reset();
 await page.evaluate(setValues, "__empty__");
-const startUrl = page.url();
-await submit();
-await page.waitForTimeout(wait);
+const empty = await attempt();
 let st = await page.evaluate(STATE);
-const emptyAttempts = posts + (page.url() !== startUrl ? 1 : 0);
-add("envío vacío bloqueado", emptyAttempts === 0, emptyAttempts === 0 ? "0 peticiones" : `${emptyAttempts} peticiones enviadas`);
+add(
+  "envío vacío bloqueado",
+  empty.clicked && empty.attempts === 0,
+  !empty.clicked ? "no se pudo pulsar el botón de envío" : empty.attempts === 0 ? "0 peticiones" : `${empty.attempts} peticiones enviadas`,
+);
 
 // 3. error anunciado (aria-live o role=alert) y campo marcado
 const announced = st.live.length > 0;
@@ -194,12 +253,13 @@ const visibleErrors = st.visibleErrors;
 await load();
 reset();
 await page.evaluate(setValues, "__spaces__");
-const spaceUrl = page.url();
-await submit();
-await page.waitForTimeout(wait);
+const spaces = await attempt();
 st = await page.evaluate(STATE);
-const spaceAttempts = posts + (page.url() !== spaceUrl ? 1 : 0);
-add("espacios no cuentan", spaceAttempts === 0, spaceAttempts === 0 ? "0 peticiones" : `${spaceAttempts} peticiones enviadas`);
+add(
+  "espacios no cuentan",
+  spaces.clicked && spaces.attempts === 0,
+  !spaces.clicked ? "no se pudo pulsar el botón de envío" : spaces.attempts === 0 ? "0 peticiones" : `${spaces.attempts} peticiones enviadas`,
+);
 
 // 6. doble clic no duplica el envío
 await load();
@@ -209,6 +269,7 @@ const filled = await page.evaluate(() =>
   [...document.querySelectorAll("input, textarea")].map((e) => e.value).filter(Boolean).length,
 );
 const loc = page.locator('button[type="submit"], input[type="submit"], form button').first();
+submitting = true;
 await loc
   .evaluate((el) => {
     el.click();
@@ -216,7 +277,8 @@ await loc
   })
   .catch(() => {});
 await page.waitForTimeout(wait);
-const doubleAttempts = posts;
+submitting = false;
+const doubleAttempts = posts + navs;
 add(
   "doble envío",
   filled > 0 && doubleAttempts === 1,

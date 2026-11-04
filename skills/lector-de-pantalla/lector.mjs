@@ -13,6 +13,12 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+process.on("uncaughtException", (e) => {
+  console.error(`error: ${e.message}`);
+  if (process.env.DEBUG) console.error(e.stack);
+  process.exit(2);
+});
+
 const DEFAULTS = {
   url: null,
   out: "shots",
@@ -50,8 +56,15 @@ function parse(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith("--")) {
-      const [k, v] = a.slice(2).split("=");
-      flags[k] = v ?? argv[++i];
+      const eq = a.indexOf("=");
+      const k = eq === -1 ? a.slice(2) : a.slice(2, eq);
+      if (eq !== -1) {
+        flags[k] = a.slice(eq + 1);
+      } else {
+        const next = argv[i + 1];
+        if (next === undefined || next.startsWith("--")) throw new Error(`--${k} necesita un valor`);
+        flags[k] = argv[++i];
+      }
     } else url = a;
   }
   const { config, ...overrides } = flags;
@@ -59,7 +72,7 @@ function parse(argv) {
   for (const k of Object.keys(overrides)) if (!(k in DEFAULTS)) throw new Error(`flag desconocido --${k}`);
   if (!url) url = opts.url;
   if (!url) throw new Error("uso: lector <url-o-ruta> [--out shots]");
-  return {
+  const out = {
     ...opts,
     url,
     width: Number(opts.width),
@@ -68,6 +81,11 @@ function parse(argv) {
     maxNodes: Number(opts.maxNodes),
     repeatLimit: Number(opts.repeatLimit),
   };
+  for (const k of ["width", "height", "settle", "maxNodes", "repeatLimit"]) {
+    if (!Number.isFinite(out[k]) || out[k] < 0) throw new Error(`--${k} inválido: ${out[k]}`);
+  }
+  if (typeof out.out !== "string" || !out.out) throw new Error("--out necesita un nombre de carpeta");
+  return out;
 }
 
 const toUrl = (u) => (/^https?:\/\//.test(u) ? u : pathToFileURL(resolve(u)).href);
@@ -208,14 +226,14 @@ if (detected.lang && declared && !declared.toLowerCase().startsWith(detected.lan
 
 // ---------- salida ----------
 
-const unique = [];
-const seen = new Set();
+const grouped = new Map();
 for (const it of items) {
   const key = `${it.check}|${it.detail}`;
-  if (seen.has(key)) continue;
-  seen.add(key);
-  unique.push(it);
+  const prev = grouped.get(key);
+  if (prev) prev.n++;
+  else grouped.set(key, { ...it, n: 1 });
 }
+const unique = [...grouped.values()];
 
 const imgs = nodes.filter((n) => n.role === "img").length;
 const links = nodes.filter((n) => n.role === "link").length;
@@ -231,17 +249,17 @@ for (const n of nodes.slice(0, maxNodes)) {
 }
 if (nodes.length > maxNodes) console.log(`  … y ${nodes.length - maxNodes} nodos más`);
 
-if (unique.length) {
-  console.log(`\nRUIDO: ${unique.length} problemas\n`);
+if (items.length) {
+  console.log(`\nRUIDO: ${items.length} problemas en ${unique.length} tipos\n`);
   for (const it of unique) {
-    console.log(`  ${it.check.padEnd(26)} ${it.detail}`);
+    console.log(`  ${it.check.padEnd(26)} ${it.detail}${it.n > 1 ? `  (x${it.n})` : ""}`);
   }
   mkdirSync(out, { recursive: true });
   const file = `${out}/lector.txt`;
   const { writeFileSync } = await import("node:fs");
   writeFileSync(file, snapshot, "utf8");
   console.log(`\nárbol completo: ${file}`);
-  console.log(`\nfallo: ${unique.length} anuncios inútiles`);
+  console.log(`\nfallo: ${items.length} anuncios inútiles`);
   process.exit(1);
 }
 console.log("\nok: todo lo que se anuncia tiene nombre útil");
