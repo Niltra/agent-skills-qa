@@ -66,7 +66,7 @@ Cada skill con motor lee su `config.json`. Precedencia: **defaults → `config.j
 ```bash
 npm test              # contrato de las skills + los cuatro motores
 npm run test:package  # cada skill copiada sola
-npm run conformance   # 46 casos con verdad conocida
+npm run conformance   # 47 casos con verdad conocida
 npm run consistency   # los cinco parsers se comportan igual
 npm run fuzz          # contraste: 586 bloques generados
 npm run fuzz:layout   # layout: 60 cajas generadas
@@ -86,9 +86,9 @@ ok: 8 ruidos, pagina limpia, idioma, casos raros, SPA y errores de uso
 
 ## Banco de conformidad
 
-`npm run conformance` ejecuta 46 casos generados en local, cada uno con un defecto conocido y el resultado esperado escrito de antemano. Sin red, sin claves, sin webs de terceros.
+`npm run conformance` ejecuta 47 casos generados en local, cada uno con un defecto conocido y el resultado esperado escrito de antemano. Sin red, sin claves, sin webs de terceros.
 
-Cubre ratios WCAG exactos (21, 4.54, 3.03), alfa, texto sobre degradado, texto con degradado recortado, `mix-blend-mode`, opacidad, `sr-only`, texto invisible, roturas por idioma, recorte por ancestro, el mismo fallo en base y destino, `ellipsis` intencionado, SVG, ancho de 375 px, canvas 3D, contenido revelado al hacer scroll, shadow DOM, SPA con render diferido, nombres con comillas y barras, RTL, formulario GET, select vacío, `contenteditable` y `role="status"`.
+Cubre ratios WCAG exactos (21, 4.54, 3.03), alfa, texto sobre degradado, texto con degradado recortado, `mix-blend-mode`, opacidad, `sr-only`, texto invisible, texto solo en iframe, roturas por idioma, recorte por ancestro, el mismo fallo en base y destino, `ellipsis` intencionado, SVG, ancho de 375 px, canvas 3D, contenido revelado al hacer scroll, shadow DOM, SPA con render diferido, nombres con comillas y barras, RTL, formulario GET, select vacío, `contenteditable` y `role="status"`.
 
 ## Fuzz
 

@@ -201,6 +201,16 @@ await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(settle);
 const canvas = await page.evaluate(CANVAS).catch(() => 0);
 
+// Texto dentro de iframes: no se mide, pero no puede pasar como "todo correcto".
+const framesConTexto = (
+  await Promise.all(
+    page
+      .frames()
+      .slice(1)
+      .map((f) => f.evaluate(() => (document.body?.innerText || "").trim().length).catch(() => 0)),
+  )
+).filter((n) => n > 0).length;
+
 // ¿hay texto que no hemos podido recoger? (pseudo-elementos, display:contents)
 const hayTexto = await page
   .evaluate(() => {
@@ -363,8 +373,8 @@ if (!measured.length) {
     console.error("mide el contraste de una captura a mano o exporta el texto fuera del canvas");
     process.exit(2);
   }
-  if (items.length || collected.skipped > 0 || collected.transparent > 0 || hayTexto) {
-    console.error(`no se pudo medir ningún texto (${items.length} candidatos, ${collected.skipped + collected.transparent} descartados)`);
+  if (items.length || collected.skipped > 0 || collected.transparent > 0 || hayTexto || framesConTexto > 0) {
+    console.error(`no se pudo medir ningún texto (${items.length} candidatos, ${collected.skipped + collected.transparent} descartados, ${framesConTexto} iframes con texto)`);
     console.error("0 medidos no es todo correcto: revisa pseudo-elementos, iframes o contenido cubierto");
     process.exit(2);
   }
@@ -409,6 +419,9 @@ console.log(`${measured.length} textos medidos, ${fails.length} por debajo, ${to
 if (canvas > 0.3) console.log(`aviso: el ${Math.round(canvas * 100)}% de la ventana es canvas (3D/WebGL), eso no se mide`);
 if (offCap) console.log(`${offCap} fuera de la captura (página de ${pageHeight} px, se mide hasta ${CAP})`);
 if (measuredResult.bounds) console.log(`${measuredResult.bounds} descartados por coordenadas fuera de la imagen`);
+if (framesConTexto > 0 && measured.length) {
+  console.log(`aviso: ${framesConTexto} iframe(s) con texto no se miden`);
+}
 console.log("");
 if (fails.length) {
   console.log(`${"ratio".padEnd(7)}${"min".padEnd(6)}${"texto".padEnd(30)}fondo`);

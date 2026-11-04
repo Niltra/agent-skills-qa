@@ -127,6 +127,15 @@ const contraste = [
     expect: { exit: 2, has: ["0 medidos no es todo correcto"], hasNot: ["ok:"] },
   },
   {
+    name: "c-solo-iframe",
+    tool: "contraste-real",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<iframe title="contenido" srcdoc="<body style='background:#fff;color:#eeeeee;font:28px system-ui'>Texto dentro del iframe</body>"></iframe>
+</body></html>`,
+    args: [],
+    expect: { exit: 2, has: ["iframes con texto"], hasNot: ["ok:"] },
+  },
+  {
     name: "c-sin-texto",
     tool: "contraste-real",
     html: cPage(`<div style="width:200px;height:80px;background:#eee"></div>`),
