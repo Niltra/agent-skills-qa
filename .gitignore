@@ -12,3 +12,4 @@ conformance/.tmp/
 out-*/
 conformance/.fuzz/
 conformance/.fuzz-layout/
+conformance/.fuzz-lector/

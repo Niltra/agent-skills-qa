@@ -137,7 +137,7 @@ for (const line of snapshot.split("\n")) {
   nodes.push({
     depth: Math.floor(m[1].length / 2),
     role: m[2],
-    name: (m[3] || "").replace(/\\"/g, '"').trim(),
+    name: (m[3] || "").replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim(),
     level: m[4] ? Number(m[4]) : null,
   });
 }
@@ -161,6 +161,13 @@ nodes.forEach((n, i) => {
 nodes.forEach((n, i) => {
   if (n.role === "img" && n.name && GENERIC(n.name, genericAlt)) {
     add(i, "alt genérico", n.name);
+  }
+});
+
+// 3b. alt demasiado largo: algunos lectores lo cortan
+nodes.forEach((n, i) => {
+  if (n.role === "img" && n.name.length > 125) {
+    add(i, "alt demasiado largo", `${n.name.length} caracteres`);
   }
 });
 

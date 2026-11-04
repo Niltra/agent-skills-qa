@@ -40,9 +40,23 @@ assert.equal(idioma.status, 1);
 assert.match(idioma.stdout, /idioma declarado incorrecto/);
 assert.match(idioma.stdout, /parece en/);
 
-// 4. Errores de uso.
+// 4. Casos raros: comillas, barras, emoji, RTL, shadow DOM y alt gigante.
+const dificil = run("./fixture/dificil.html", "--out", "shots-test");
+assert.equal(dificil.status, 1, dificil.stdout + dificil.stderr);
+assert.match(dificil.stdout, /alt demasiado largo/);
+assert.match(dificil.stdout, /leer más/, "no leyó el shadow DOM");
+assert.match(dificil.stdout, /Ruta C:\\temp\\foto/, "no desescapó las barras");
+assert.doesNotMatch(dificil.stdout, /no se pudo/);
+
+// 5. SPA: el contenido se pinta después de cargar.
+const spa = run("./fixture/spa.html", "--out", "shots-test");
+assert.equal(spa.status, 1, spa.stdout + spa.stderr);
+assert.match(spa.stdout, /hero-final-2024\.jpg/, "no esperó al render");
+assert.match(spa.stdout, /Imagen en shadow DOM/, "no atravesó el shadow DOM");
+
+// 6. Errores de uso.
 assert.notEqual(run().status, 0, "sin url debe fallar");
 assert.notEqual(run("./fixture/bueno.html", "--wat", "1").status, 0, "flag desconocido debe fallar");
 
 rmSync(at("shots-test"), { recursive: true, force: true });
-console.log("ok: 8 ruidos detectados, pagina limpia aprobada, idioma y errores de uso");
+console.log("ok: 8 ruidos, pagina limpia, idioma, casos raros, SPA y errores de uso");

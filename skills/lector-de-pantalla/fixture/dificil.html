@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es" dir="rtl">
+<head><meta charset="utf-8"><title>Difícil</title></head>
+<body>
+<h1>Casos raros</h1>
+
+<!-- comillas y barras dentro del alt -->
+<img src="a.png" alt='Foto "destacada" del producto'>
+<img src="b.png" alt="Ruta C:\temp\foto">
+<img src="c.png" alt="Zapatillas 🏃‍♀️ talla 42">
+
+<!-- nombre larguísimo -->
+<img src="d.png" alt="Una descripción larguísima que ocupa mucho más de lo razonable y que un lector tardaría demasiado en leer porque repite detalles que no aportan nada al usuario que está escuchando la página con atención y paciencia">
+
+<!-- botón con aria-label entre comillas -->
+<button aria-label='Cerrar "ventana"'></button>
+
+<!-- anidamiento profundo -->
+<div><div><div><div><div><div><div><div><div><div>
+  <a href="/x">Enlace profundo</a>
+</div></div></div></div></div></div></div></div></div></div>
+
+<!-- svg con título -->
+<svg width="80" height="40"><title>Icono de carrito</title><circle cx="20" cy="20" r="15" /></svg>
+
+<!-- shadow dom -->
+<div id="host"></div>
+
+<!-- iframe -->
+<iframe title="Mapa" srcdoc="<button>Botón dentro del iframe</button>"></iframe>
+
+<script>
+  const host = document.getElementById("host");
+  const root = host.attachShadow({ mode: "open" });
+  root.innerHTML = '<img src="shadow.png" alt="Imagen dentro del shadow DOM"><a href="/s">leer más</a>';
+</script>
+</body>
+</html>

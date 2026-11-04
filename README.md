@@ -58,9 +58,10 @@ Cada skill con motor lee su `config.json`. Precedencia: **defaults → `config.j
 
 ```bash
 npm test              # contrato de las skills + los cuatro motores
-npm run conformance   # 35 casos con verdad conocida
+npm run conformance   # 37 casos con verdad conocida
 npm run fuzz          # contraste: 586 bloques generados
 npm run fuzz:layout   # layout: 60 cajas generadas
+npm run fuzz:lector   # lector: 300 comprobaciones generadas
 npm run test:launch   # skill-launch (Python + Pillow)
 ```
 
@@ -76,9 +77,9 @@ ok: 8 ruidos detectados, pagina limpia aprobada, idioma y errores de uso
 
 ## Banco de conformidad
 
-`npm run conformance` ejecuta 35 casos generados en local, cada uno con un defecto conocido y el resultado esperado escrito de antemano. Sin red, sin claves, sin webs de terceros.
+`npm run conformance` ejecuta 37 casos generados en local, cada uno con un defecto conocido y el resultado esperado escrito de antemano. Sin red, sin claves, sin webs de terceros.
 
-Cubre ratios WCAG exactos (21, 4.54, 3.03), texto sobre degradado, texto con degradado recortado, `mix-blend-mode`, opacidad, `sr-only`, texto invisible, roturas por idioma, el mismo fallo en base y destino, `ellipsis` intencionado, SVG, ancho de 375 px, canvas 3D, contenido revelado al hacer scroll y las 7 pruebas del formulario una por una.
+Cubre ratios WCAG exactos (21, 4.54, 3.03), texto sobre degradado, texto con degradado recortado, `mix-blend-mode`, opacidad, `sr-only`, texto invisible, roturas por idioma, el mismo fallo en base y destino, `ellipsis` intencionado, SVG, ancho de 375 px, canvas 3D, contenido revelado al hacer scroll, shadow DOM, SPA con render diferido, nombres con comillas y barras, RTL y las 7 pruebas del formulario una por una.
 
 ## Fuzz
 
@@ -87,9 +88,10 @@ Dos generadores crean casos aleatorios con la respuesta calculada de antemano, a
 ```bash
 npm run fuzz          # contraste: calcula el ratio WCAG por su cuenta y lo compara
 npm run fuzz:layout   # layout: cajas que caben o no caben por diseño
+npm run fuzz:lector   # lector: defectos y elementos limpios, con su veredicto esperado
 ```
 
-Última ejecución: 586 bloques de contraste y 60 cajas de layout, con **0 falsos positivos y 0 falsos negativos**. `--seed` y `--pages` cambian la muestra.
+Última ejecución: 586 bloques de contraste, 60 cajas de layout y 300 comprobaciones del lector, con **0 falsos positivos y 0 falsos negativos**. `--seed` y `--pages` cambian la muestra.
 
 ## Scroll, animaciones y 3D
 

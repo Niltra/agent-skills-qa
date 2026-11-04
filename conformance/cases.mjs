@@ -371,6 +371,38 @@ const lector = [
     args: [],
     expect: { exit: 1, has: ["idioma declarado incorrecto", "parece en"] },
   },
+  {
+    name: "l-dificil",
+    tool: "lector-de-pantalla",
+    html: `<!doctype html><html lang="es" dir="rtl"><head><meta charset="utf-8"></head><body>
+<h1>Casos raros</h1>
+<img src="a.png" alt='Foto "destacada" del producto'>
+<img src="b.png" alt="Ruta C:\\temp\\foto">
+<img src="c.png" alt="${"Descripción muy larga ".repeat(8)}">
+<button aria-label='Cerrar "ventana"'></button>
+<div id="host"></div>
+<script>
+  const root = document.getElementById("host").attachShadow({ mode: "open" });
+  root.innerHTML = '<a href="/s">leer más</a>';
+</script>
+</body></html>`,
+    args: [],
+    expect: { exit: 1, has: ["alt demasiado largo", "enlace sin nombre útil"], hasNot: ["no se pudo"] },
+  },
+  {
+    name: "l-spa",
+    tool: "lector-de-pantalla",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<div id="root"></div>
+<script>
+  setTimeout(() => {
+    document.getElementById("root").innerHTML = '<h1>App</h1><img src="hero.png" alt="hero-final.jpg"><a href="/x">leer más</a>';
+  }, 150);
+</script>
+</body></html>`,
+    args: [],
+    expect: { exit: 1, has: ["alt = nombre del fichero", "enlace sin nombre útil"] },
+  },
 ];
 
 export const CASES = [...contraste, ...rompelayout, ...formulario, ...lector];

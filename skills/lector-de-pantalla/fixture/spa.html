@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>SPA</title></head>
+<body>
+<div id="root"></div>
+<script>
+  setTimeout(() => {
+    document.getElementById("root").innerHTML =
+      '<h1>Aplicación</h1>' +
+      '<img src="hero.png" alt="hero-final-2024.jpg">' +
+      '<div id="host"></div>' +
+      '<a href="/x">leer más</a>';
+    const root = document.getElementById("host").attachShadow({ mode: "open" });
+    root.innerHTML = '<img src="s.png" alt="Imagen en shadow DOM">';
+  }, 200);
+</script>
+</body>
+</html>

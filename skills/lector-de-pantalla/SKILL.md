@@ -55,6 +55,7 @@ Sale con código 1 si hay ruido y guarda el árbol completo en `shots/lector.txt
 | `imagen sin alternativa` | `<img>` sin `alt` ni nombre accesible |
 | `alt = nombre del fichero` | `alt="hero-final-2.jpg"` |
 | `alt genérico` | `alt="imagen"`, `"foto"`, `"logo"` |
+| `alt demasiado largo` | más de 125 caracteres: algunos lectores lo cortan |
 | `enlace sin nombre útil` | vacío o `"leer más"`, `"aquí"`, `"ver más"` |
 | `botón sin nombre útil` | icono sin `aria-label` ni texto |
 | `texto repetido` | el mismo nombre 3 veces o más |
@@ -86,5 +87,7 @@ Sale con código 1 si hay ruido y guarda el árbol completo en `shots/lector.txt
 - No juzga si la descripción es correcta: solo si es útil. Eso lo decide una persona mirando la imagen.
 - La detección de idioma necesita unas 100 palabras y un texto mayoritariamente en un solo idioma. En páginas cortas o bilingües no opina.
 - Trabaja sobre el árbol de accesibilidad del navegador: no ejecuta NVDA ni VoiceOver.
+- **No lee el contenido de los iframes.** El árbol del documento principal no los atraviesa. Un formulario o un widget dentro de un iframe no se audita con esto.
+- Sí atraviesa shadow DOM abierto, y sí respeta `dir="rtl"`.
 - No revisa contraste ni orden de foco: eso es `contraste-real` y `web-qa-visual`.
 - Los nodos sin texto (`banner`, `main`) se muestran en la transcripción aunque no sean un problema.
