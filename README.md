@@ -75,7 +75,18 @@ ok: 7 checks catch the liar, 7 pass on the honest form, config respected
 
 `npm run conformance` ejecuta 26 casos generados en local, cada uno con un defecto conocido y el resultado esperado escrito de antemano. Sin red, sin claves, sin webs de terceros.
 
-Cubre ratios WCAG exactos (21, 4.54, 3.03), texto sobre degradado, texto con degradado recortado, `mix-blend-mode`, opacidad, `sr-only`, roturas por idioma, el mismo fallo en base y destino, `ellipsis` intencionado, SVG, ancho de 375 px y las 7 pruebas del formulario una por una.
+Cubre ratios WCAG exactos (21, 4.54, 3.03), texto sobre degradado, texto con degradado recortado, `mix-blend-mode`, opacidad, `sr-only`, texto invisible, roturas por idioma, el mismo fallo en base y destino, `ellipsis` intencionado, SVG, ancho de 375 px y las 7 pruebas del formulario una por una.
+
+## Fuzz
+
+Dos generadores crean casos aleatorios con la respuesta calculada de antemano, así que miden precisión y no solo que no reviente:
+
+```bash
+npm run fuzz          # contraste: calcula el ratio WCAG por su cuenta y lo compara
+npm run fuzz:layout   # layout: cajas que caben o no caben por diseño
+```
+
+Última ejecución: 586 bloques de contraste y 60 cajas de layout, con **0 falsos positivos y 0 falsos negativos**. `--seed` y `--pages` cambian la muestra.
 
 ## Fuentes
 

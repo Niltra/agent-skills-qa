@@ -6,7 +6,9 @@
   "scripts": {
     "test": "node scripts/check-skills.mjs && node skills/rompelayout/test.mjs && node skills/contraste-real/test.mjs && node skills/formulario-que-no-miente/test.mjs",
     "conformance": "node conformance/run.mjs",
-    "test:all": "npm test && npm run conformance",
+    "fuzz": "node conformance/fuzz.mjs --seed 2026 --pages 30 --blocks 20",
+    "fuzz:layout": "node conformance/fuzz-layout.mjs --seed 3 --pages 12",
+    "test:all": "npm test && npm run conformance && npm run fuzz && npm run fuzz:layout",
     "test:skills": "node scripts/check-skills.mjs",
     "test:rompelayout": "node skills/rompelayout/test.mjs",
     "test:contraste": "node skills/contraste-real/test.mjs",

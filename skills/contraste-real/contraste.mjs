@@ -212,6 +212,7 @@ const measuredResult = await measurePage.evaluate(
       const dv = V.ctx.getImageData(sx, sy, sw, sh).data;
       const dh = H.ctx.getImageData(sx, sy, sw, sh).data;
       const L1 = lum(it.color[0], it.color[1], it.color[2]);
+      const large = it.size >= largeTextPx || (it.size >= largeBoldPx && it.weight >= 700);
       let worst = 22, bg = [0, 0, 0], ink = 0;
       for (let i = 0; i < dv.length; i += 4) {
         const diff =
@@ -227,8 +228,40 @@ const measuredResult = await measurePage.evaluate(
           bg = [dh[i], dh[i + 1], dh[i + 2]];
         }
       }
-      if (ink < 5) { skipped++; continue; }
-      const large = it.size >= largeTextPx || (it.size >= largeBoldPx && it.weight >= 700);
+      if (ink < 5) {
+        // No hay tinta: o el texto es del mismo color que el fondo, o está tapado.
+        // Solo se reporta lo primero, comparando el color del texto con el color dominante.
+        const counts = new Map();
+        for (let i = 0; i < dh.length; i += 4) {
+          if (dh[i + 3] < 250) continue;
+          const key = (dh[i] >> 4) * 256 + (dh[i + 1] >> 4) * 16 + (dh[i + 2] >> 4);
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        let bestKey = -1, bestN = 0;
+        for (const [k, n] of counts) if (n > bestN) { bestN = n; bestKey = k; }
+        if (bestKey >= 0) {
+          const rr = ((bestKey >> 8) & 15) * 17;
+          const gg = ((bestKey >> 4) & 15) * 17;
+          const bb = (bestKey & 15) * 17;
+          const dist =
+            Math.abs(rr - it.color[0]) + Math.abs(gg - it.color[1]) + Math.abs(bb - it.color[2]);
+          if (dist <= 12) {
+            const L2 = lum(rr, gg, bb);
+            const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+            out.push({
+              ...it,
+              large,
+              ratio: Math.round(ratio * 100) / 100,
+              bg: [rr, gg, bb],
+              invisible: true,
+              dbg: [sx, sy, sw, sh, H.img.width, H.img.height],
+            });
+            continue;
+          }
+        }
+        skipped++;
+        continue;
+      }
       out.push({ ...it, large, ratio: Math.round(worst * 100) / 100, bg, dbg: [sx, sy, sw, sh, H.img.width, H.img.height] });
     }
     return { list: out, skipped, offCap, bounds };
@@ -296,7 +329,7 @@ if (fails.length) {
     console.log(
       `${String(f.ratio).padEnd(7)}${String(f.min).padEnd(6)}${sel.padEnd(34)}${hex(f.bg)}`,
     );
-    console.log(`${" ".repeat(13)}"${f.text}"  ${f.size}px ${f.weight}`);
+    console.log(`${" ".repeat(13)}"${f.text}"  ${f.size}px ${f.weight}${f.invisible ? "  (texto invisible: mismo color que el fondo)" : ""}`);
     if (process.env.CR_DEBUG) console.log(`${" ".repeat(13)}dbg x,y,w,h,img: ${f.dbg.join(",")} | item x,y: ${Math.round(f.x)},${Math.round(f.y)}`);
   }
   console.log(`\nfallo: ${fails.length} textos no se leen sobre su fondo real`);

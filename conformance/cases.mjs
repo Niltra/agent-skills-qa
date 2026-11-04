@@ -84,6 +84,13 @@ const contraste = [
     expect: { exit: 0, has: ["1 textos medidos"], hasNot: ["fallo:"] },
   },
   {
+    name: "c-texto-invisible",
+    tool: "contraste-real",
+    html: cPage(`<p style="color:#111111;background:#111111">Mismo color que el fondo</p>`),
+    args: [],
+    expect: { exit: 1, has: ["texto invisible", "fallo:"] },
+  },
+  {
     name: "c-sin-texto",
     tool: "contraste-real",
     html: cPage(`<div style="width:200px;height:80px;background:#eee"></div>`),
