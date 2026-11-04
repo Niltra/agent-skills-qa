@@ -8,3 +8,5 @@ __pycache__/
 PROMO.md
 promo/
 tools/skill-launch/demo/
+conformance/.tmp/
+out-*/

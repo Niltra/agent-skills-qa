@@ -55,6 +55,7 @@ Cada skill con motor lee su `config.json`. Precedencia: **defaults → `config.j
 
 ```bash
 npm test              # contrato de las skills + rompelayout + contraste-real
+npm run conformance   # 26 casos con verdad conocida
 npm run test:launch   # skill-launch (Python + Pillow)
 ```
 
@@ -70,13 +71,11 @@ ok: AA gradient, AAA borderline, target override, config respected, bad flags fa
 ok: 7 checks catch the liar, 7 pass on the honest form, config respected
 ```
 
-## Probado contra webs reales
+## Banco de conformidad
 
-`node bench/run.mjs` lanza los motores contra 11 URLs públicas. Resultados, falsos positivos encontrados y límites en [`BENCH.md`](BENCH.md).
+`npm run conformance` ejecuta 26 casos generados en local, cada uno con un defecto conocido y el resultado esperado escrito de antemano. Sin red, sin claves, sin webs de terceros.
 
-- `rompelayout`: 0 roturas nuevas en 6 sitios multiidioma.
-- `contraste-real`: 808 textos medidos en Wikipedia y 274 en Stripe, con los falsos positivos documentados y corregidos.
-- `formulario-que-no-miente` no se prueba en sitios de terceros: no se envían datos a quien no te ha dado permiso.
+Cubre ratios WCAG exactos (21, 4.54, 3.03), texto sobre degradado, texto con degradado recortado, `mix-blend-mode`, opacidad, `sr-only`, roturas por idioma, el mismo fallo en base y destino, `ellipsis` intencionado, SVG, ancho de 375 px y las 7 pruebas del formulario una por una.
 
 ## Fuentes
 

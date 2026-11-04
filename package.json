@@ -5,6 +5,8 @@
   "description": "Skills que auditan una web con evidencia: layout por idioma, contraste real, formularios y expediente EAA.",
   "scripts": {
     "test": "node scripts/check-skills.mjs && node skills/rompelayout/test.mjs && node skills/contraste-real/test.mjs && node skills/formulario-que-no-miente/test.mjs",
+    "conformance": "node conformance/run.mjs",
+    "test:all": "npm test && npm run conformance",
     "test:skills": "node scripts/check-skills.mjs",
     "test:rompelayout": "node skills/rompelayout/test.mjs",
     "test:contraste": "node skills/contraste-real/test.mjs",

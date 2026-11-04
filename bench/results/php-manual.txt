@@ -1,7 +1,0 @@
-
-locale   fallos   revisar  base   notas
-----------------------------------------------------------------
-en       0        0        0      referencia
-de       0        0        0      
-
-ok: ningún elemento se rompe solo por cambiar de idioma

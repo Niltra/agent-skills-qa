@@ -162,8 +162,8 @@ for (const r of report) {
 // Un recorte con ellipsis puede ser intencionado; solo es fallo si no hay puntos suspensivos,
 // o si el elemento se sale del contenedor o de la pantalla.
 const hard = (it) =>
-  it.bad.some((b) => b === "viewport" || b === "child-out") ||
-  (it.bad.some((b) => b.startsWith("clipped")) && !it.ellipsis);
+  it.bad.includes("viewport") ||
+  (!it.ellipsis && it.bad.some((b) => b === "child-out" || b.startsWith("clipped")));
 
 for (const r of report) {
   r.freshHard = r.fresh.filter(hard);
