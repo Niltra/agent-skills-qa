@@ -1,0 +1,54 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Contrato de skills
+        run: npm test
+
+      - name: Instalación limpia de cada skill
+        run: npm run test:package
+
+      - name: Conformidad
+        run: npm run conformance
+
+      - name: Parsers consistentes
+        run: npm run consistency
+
+      - name: Fuzz de contraste
+        run: npm run fuzz
+
+      - name: Fuzz de layout
+        run: npm run fuzz:layout
+
+      - name: Fuzz del lector
+        run: npm run fuzz:lector
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar Pillow
+        run: pip install pillow
+
+      - name: Tests de skill-launch
+        run: npm run test:launch
+Requiere el scope workflow de gh. Ver ci/README.md.

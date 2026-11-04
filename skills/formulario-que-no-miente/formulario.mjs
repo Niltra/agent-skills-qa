@@ -72,7 +72,13 @@ const toUrl = (u) => (/^https?:\/\//.test(u) ? u : pathToFileURL(resolve(u)).hre
 
 const FIELDS = `(() => {
   const out = [];
-  for (const el of document.querySelectorAll("input, textarea, select")) {
+  const els = [];
+  const walk = (root) => {
+    for (const el of root.querySelectorAll("input, textarea, select")) els.push(el);
+    for (const el of root.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
+  };
+  walk(document);
+  for (const el of els) {
     const t = (el.getAttribute("type") || el.tagName).toLowerCase();
     if (["submit", "button", "reset", "image", "file", "hidden"].includes(t)) continue;
     if (el.disabled) continue;
@@ -107,7 +113,13 @@ function setValues(value) {
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
   };
-  for (const el of document.querySelectorAll("input, textarea, select")) {
+  const els = [];
+  const walk = (root) => {
+    for (const el of root.querySelectorAll("input, textarea, select")) els.push(el);
+    for (const el of root.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
+  };
+  walk(document);
+  for (const el of els) {
     const t = (el.getAttribute("type") || el.tagName).toLowerCase();
     if (["submit", "button", "reset", "image", "file", "hidden"].includes(t)) continue;
     if (el.disabled) continue;
@@ -182,6 +194,8 @@ const load = async () => {
   loading = true;
   try {
     await page.goto(toUrl(url), { waitUntil: "load" });
+    // `load` no espera a las webfonts: sin esto se mide con la fuente de respaldo
+    await page.evaluate(() => document.fonts.ready.then(() => true));
   } finally {
     loading = false;
   }
@@ -265,9 +279,15 @@ add(
 await load();
 reset();
 await page.evaluate(setValues, "__fill__");
-const filled = await page.evaluate(() =>
-  [...document.querySelectorAll("input, textarea")].map((e) => e.value).filter(Boolean).length,
-);
+const filled = await page.evaluate(() => {
+  const els = [];
+  const walk = (root) => {
+    for (const el of root.querySelectorAll("input, textarea")) els.push(el);
+    for (const el of root.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
+  };
+  walk(document);
+  return els.map((e) => e.value).filter(Boolean).length;
+});
 const loc = page.locator('button[type="submit"], input[type="submit"], form button').first();
 submitting = true;
 await loc

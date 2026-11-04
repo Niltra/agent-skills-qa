@@ -370,6 +370,20 @@ const formulario = [
     expect: { exit: 1, has: ["OK     envío vacío bloqueado", "OK     nombre accesible"], hasNot: ["FALLO  envío vacío", "FALLO  nombre accesible"] },
   },
   {
+    name: "f-shadow",
+    tool: "formulario-que-no-miente",
+    html: `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<div id="host"></div>
+<script>
+  const root = document.getElementById("host").attachShadow({ mode: "open" });
+  root.innerHTML = '<form id="f" novalidate><label for="e">Email</label><input id="e" name="email" type="email" autocomplete="email"><button type="submit">Enviar</button></form>';
+  root.getElementById("f").addEventListener("submit", (e) => { e.preventDefault(); });
+</script>
+</body></html>`,
+    args: [],
+    expect: { exit: 1, has: ["nombre accesible"], hasNot: ["no se encontraron campos"] },
+  },
+  {
     name: "f-sin-campos",
     tool: "formulario-que-no-miente",
     html: `<!doctype html><html><body><form><p>Sin campos</p><button>Enviar</button></form></body></html>`,

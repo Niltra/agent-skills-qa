@@ -9,7 +9,7 @@
  * Sale con 1 si el texto que se anuncia es inutil.
  */
 import { chromium } from "playwright";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -123,6 +123,7 @@ const wantsScroll = !(scroll === false || scroll === "false" || scroll === 0 || 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width, height } });
 await page.goto(toUrl(url), { waitUntil: "load" });
+await page.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
 if (wantsScroll) {
   const h = await page.evaluate(() => document.documentElement.scrollHeight);
   const vh = page.viewportSize().height;
@@ -256,7 +257,6 @@ if (items.length) {
   }
   mkdirSync(out, { recursive: true });
   const file = `${out}/lector.txt`;
-  const { writeFileSync } = await import("node:fs");
   writeFileSync(file, snapshot, "utf8");
   console.log(`\nárbol completo: ${file}`);
   console.log(`\nfallo: ${items.length} anuncios inútiles`);

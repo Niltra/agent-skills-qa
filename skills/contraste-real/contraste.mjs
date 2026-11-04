@@ -194,6 +194,7 @@ const CANVAS = `(() => {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
 await page.goto(toUrl(url), { waitUntil: "load" });
+await page.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
 await warmScroll();
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(settle);
@@ -224,7 +225,10 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(80);
 const shotHidden = await page.screenshot({ fullPage: true, clip, animations: "disabled", timeout: 90000 });
-if (process.env.CR_SAVE) writeFileSync("bench/shots/cr-last.png", shotHidden);
+if (process.env.CR_SAVE) {
+  mkdirSync("bench/shots", { recursive: true });
+  writeFileSync("bench/shots/cr-last.png", shotHidden);
+}
 
 const visible64 = shotVisible.toString("base64");
 const hidden64 = shotHidden.toString("base64");
@@ -369,6 +373,7 @@ if (fails.length) {
   const browser2 = await chromium.launch();
   const p2 = await browser2.newPage({ viewport: { width, height } });
   await p2.goto(toUrl(url), { waitUntil: "load" });
+  await p2.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
   await p2.waitForTimeout(settle);
   await p2.evaluate(COLLECT);
   await p2.evaluate((ids) => {

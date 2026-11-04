@@ -167,6 +167,10 @@ async function warmScroll(page) {
   await page.evaluate(() => window.scrollTo(0, 0));
 }
 
+async function waitFonts(page) {
+  await page.evaluate(() => document.fonts.ready.then(() => true)).catch(() => {});
+}
+
 const CANVAS = `(() => {
   const vw = innerWidth, vh = innerHeight;
   let area = 0;
@@ -187,6 +191,7 @@ const page = await browser.newPage({ viewport: { width, height: 900 } });
 const report = [];
 for (const locale of locales) {
   await page.goto(urlFor(url, locale), { waitUntil: "load" });
+  await waitFonts(page);
   await warmScroll(page);
   await page.waitForTimeout(settle);
   let result;
@@ -229,6 +234,7 @@ for (const r of report) {
 for (const r of report) {
   if (!r.freshHard.length && !r.freshScroll) continue;
   await page.goto(urlFor(url, r.locale), { waitUntil: "load" });
+  await waitFonts(page);
   await warmScroll(page);
   await page.waitForTimeout(settle);
   const again = await page.evaluate(CHECK_CODE).catch(() => ({ items: [] }));
