@@ -66,6 +66,9 @@ En orden: oscurecer el overlay hasta que el peor píxel pase; mover el texto fue
 ## Límites honestos
 
 - Solo mide texto presente en el DOM en ese momento: no estados hover, modales ni carruseles.
-- En vídeo mide el fotograma que pille. Repetir en 2-3 momentos si el vídeo se mueve.
-- Muestrea la caja del elemento, así que un icono oscuro dentro de esa caja puede contarse como fondo. Es conservador a propósito: si marca un falso positivo, se revisa a ojo antes de tocar nada.
+- Necesita que el texto cambie entre la captura con texto y sin texto. Si no cambia (texto invisible o tapado), no se mide.
+- No se mide: texto con `mix-blend-mode`, `filter`, opacidad menor que 1, o degradado recortado a las letras. Se cuentan aparte como "no medibles".
+- Tope de 16.000 px de alto por página. Lo que queda por debajo se cuenta como "fuera de la captura".
+- Con animaciones se mide el estado final. Si el color cambia con la animación, el número es el de ese fotograma.
+- Si no consigue medir ningún texto, sale con código 2. Nada medido no es todo correcto.
 - No sustituye a axe: axe sigue siendo mejor para el resto de reglas.

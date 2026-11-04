@@ -1,0 +1,6 @@
+
+contraste AA: 4.5:1 normal, 3:1 grande
+109 textos medidos, 0 por debajo, 86 no medibles
+20 descartados por coordenadas fuera de la imagen
+
+ok: todos los textos llegan al umbral sobre el fondo real

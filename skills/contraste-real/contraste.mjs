@@ -10,7 +10,7 @@
  * Sale con 1 si algÃºn texto no llega al umbral.
  */
 import { chromium } from "playwright";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -78,6 +78,7 @@ const toUrl = (u) => (/^https?:\/\//.test(u) ? u : pathToFileURL(resolve(u)).hre
 
 const COLLECT = `(() => {
   const out = [];
+  let skipped = 0;
   const label = (el) => {
     const parts = [];
     for (let n = el; n && n.nodeType === 1 && parts.length < 4; n = n.parentElement) {
@@ -96,6 +97,19 @@ const COLLECT = `(() => {
     const s = getComputedStyle(el);
     if (s.visibility === "hidden" || s.display === "none" || Number(s.opacity) === 0) continue;
     if (s.color === "rgba(0, 0, 0, 0)" || s.webkitTextFillColor === "rgba(0, 0, 0, 0)") continue;
+    // texto con degradado recortado a las letras: el color calculado no es el color pintado
+    const clip = s.webkitBackgroundClip || s.backgroundClip;
+    if (clip === "text" && s.backgroundImage && s.backgroundImage !== "none") { skipped++; continue; }
+    // blend, filter y opacidad cambian el color pintado: medir el color calculado daría un número falso.
+    let blocked = false;
+    let opacity = 1;
+    for (let n = el, d = 0; n && n !== document.body && d < 6; n = n.parentElement, d++) {
+      const cs = getComputedStyle(n);
+      opacity *= Number(cs.opacity);
+      if (cs.mixBlendMode && cs.mixBlendMode !== "normal") blocked = true;
+      if (cs.filter && cs.filter !== "none") blocked = true;
+    }
+    if (blocked || opacity < 0.99) { skipped++; continue; }
     const r = el.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) continue;
     if (r.bottom < 0 || r.top > document.documentElement.scrollHeight) continue;
@@ -115,7 +129,7 @@ const COLLECT = `(() => {
       h: r.height,
     });
   }
-  return out;
+  return { items: out, skipped };
 })()`;
 
 const hex = (c) => "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
@@ -130,65 +144,111 @@ await page.goto(toUrl(url), { waitUntil: "load" });
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(settle);
 
-const items = await page.evaluate(COLLECT);
+const collected = await page.evaluate(COLLECT);
+const items = collected.items;
 
-const tag = await page.addStyleTag({
-  content: `body, body * { color: transparent !important; -webkit-text-fill-color: transparent !important;
-            text-shadow: none !important; caret-color: transparent !important; }`,
+const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+const CAP = 16000;
+const cap = Math.min(pageHeight, CAP);
+const clip = { x: 0, y: 0, width, height: cap };
+
+let shotVisible;
+try {
+  shotVisible = await page.screenshot({ fullPage: true, clip, animations: "disabled", timeout: 90000 });
+} catch (e) {
+  console.error(`no se pudo capturar la página: ${e.message.split("\n")[0]}`);
+  process.exit(2);
+}
+// El estilo en línea con !important gana al CSS del sitio; una hoja inyectada no siempre.
+await page.evaluate(() => {
+  for (const el of document.querySelectorAll("[data-cr]")) {
+    el.style.setProperty("color", "transparent", "important");
+    el.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+    el.style.setProperty("text-shadow", "none", "important");
+  }
 });
 await page.waitForTimeout(80);
-const shot = await page.screenshot({ fullPage: true, animations: "disabled" });
-await tag.evaluate((el) => el.remove());
-const b64 = shot.toString("base64");
+const shotHidden = await page.screenshot({ fullPage: true, clip, animations: "disabled", timeout: 90000 });
+if (process.env.CR_SAVE) writeFileSync("bench/shots/cr-last.png", shotHidden);
 
-const measured = await page.evaluate(
-  async ({ b64, items, largeTextPx, largeBoldPx }) => {
-    if (!items.length) return [];
-    const img = new Image();
-    img.src = "data:image/png;base64," + b64;
-    await img.decode();
-    const c = document.createElement("canvas");
-    c.width = img.width;
-    c.height = img.height;
-    const ctx = c.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0);
+const visible64 = shotVisible.toString("base64");
+const hidden64 = shotHidden.toString("base64");
+
+const measurePage = await browser.newPage();
+await measurePage.setContent("<!doctype html><html><body></body></html>");
+const measuredResult = await measurePage.evaluate(
+  async ({ visible64, hidden64, items, largeTextPx, largeBoldPx, cap }) => {
+    if (!items.length) return { list: [], skipped: 0 };
+    const load = async (src) => {
+      const img = new Image();
+      img.src = "data:image/png;base64," + src;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      return { img, ctx };
+    };
+    const V = await load(visible64);
+    const H = await load(hidden64);
     const fl = (v) => {
       v /= 255;
       return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     };
     const lum = (r, g, b) => 0.2126 * fl(r) + 0.7152 * fl(g) + 0.0722 * fl(b);
     const out = [];
+    let skipped = 0;
+    let offCap = 0;
+    let bounds = 0;
     for (const it of items) {
-      const inset = 2;
+      if (it.y >= cap) { offCap++; continue; }
+      const inset = 1;
       const sx = Math.max(0, Math.round(it.x) + inset);
       const sy = Math.max(0, Math.round(it.y) + inset);
-      const sw = Math.min(img.width - sx, Math.round(it.w) - inset * 2);
-      const sh = Math.min(img.height - sy, Math.round(it.h) - inset * 2);
-      if (sw < 2 || sh < 2) continue;
-      const data = ctx.getImageData(sx, sy, sw, sh).data;
-      const step = Math.max(1, Math.floor(Math.min(sw, sh) / 16));
+      const sw = Math.min(H.img.width - sx, Math.round(it.w) - inset * 2);
+      const sh = Math.min(H.img.height - sy, Math.round(it.h) - inset * 2);
+      if (sw < 4 || sh < 4) { bounds++; continue; }
+      const dv = V.ctx.getImageData(sx, sy, sw, sh).data;
+      const dh = H.ctx.getImageData(sx, sy, sw, sh).data;
       const L1 = lum(it.color[0], it.color[1], it.color[2]);
-      let worst = 22, bg = [0, 0, 0];
-      for (let y = 0; y < sh; y += step) {
-        for (let x = 0; x < sw; x += step) {
-          const i = (y * sw + x) * 4;
-          const L2 = lum(data[i], data[i + 1], data[i + 2]);
-          const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
-          if (ratio < worst) {
-            worst = ratio;
-            bg = [data[i], data[i + 1], data[i + 2]];
-          }
+      let worst = 22, bg = [0, 0, 0], ink = 0;
+      for (let i = 0; i < dv.length; i += 4) {
+        const diff =
+          Math.abs(dv[i] - dh[i]) + Math.abs(dv[i + 1] - dh[i + 1]) + Math.abs(dv[i + 2] - dh[i + 2]);
+        // solo los píxeles que eran letra: así no se cuela un logo, un borde o un icono
+        if (diff <= 24) continue;
+        ink++;
+        if (dh[i + 3] < 250) continue;
+        const L2 = lum(dh[i], dh[i + 1], dh[i + 2]);
+        const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+        if (ratio < worst) {
+          worst = ratio;
+          bg = [dh[i], dh[i + 1], dh[i + 2]];
         }
       }
+      if (ink < 5) { skipped++; continue; }
       const large = it.size >= largeTextPx || (it.size >= largeBoldPx && it.weight >= 700);
-      out.push({ ...it, large, ratio: Math.round(worst * 100) / 100, bg });
+      out.push({ ...it, large, ratio: Math.round(worst * 100) / 100, bg, dbg: [sx, sy, sw, sh, H.img.width, H.img.height] });
     }
-    return out;
+    return { list: out, skipped, offCap, bounds };
   },
-  { b64, items, largeTextPx, largeBoldPx },
+  { visible64, hidden64, items, largeTextPx, largeBoldPx, cap },
 );
+await measurePage.close();
 
 await browser.close();
+
+const measured = measuredResult.list;
+const totalSkipped = collected.skipped + measuredResult.skipped;
+const offCap = measuredResult.offCap;
+
+// "Nada medido" no es "todo correcto".
+if (!measured.length && items.length) {
+  console.error(`no se pudo medir ningún texto de ${items.length} candidatos`);
+  console.error("el sitio resiste el ocultado del texto, o todo el texto está cubierto o animado");
+  process.exit(2);
+}
 
 const fails = measured
   .map((m) => ({ ...m, min: target ?? (m.large ? thresholds.large : thresholds.normal) }))
@@ -213,13 +273,21 @@ if (fails.length) {
       }
     }
   }, fails.map((f) => f.id));
-  await p2.screenshot({ path: file, fullPage: true });
+  await p2.screenshot({
+    path: file,
+    fullPage: true,
+    clip: { x: 0, y: 0, width, height: Math.min(cap, 16000) },
+    timeout: 90000,
+  });
   await browser2.close();
   console.log(`\ncaptura: ${file}`);
 }
 
 console.log(`\ncontraste ${level}: ${thresholds.normal}:1 normal, ${thresholds.large}:1 grande${target ? `, objetivo ${target}:1` : ""}`);
-console.log(`${measured.length} textos medidos, ${fails.length} por debajo\n`);
+console.log(`${measured.length} textos medidos, ${fails.length} por debajo, ${totalSkipped} no medibles`);
+if (offCap) console.log(`${offCap} fuera de la captura (página de ${pageHeight} px, se mide hasta ${CAP})`);
+if (measuredResult.bounds) console.log(`${measuredResult.bounds} descartados por coordenadas fuera de la imagen`);
+console.log("");
 if (fails.length) {
   console.log(`${"ratio".padEnd(7)}${"min".padEnd(6)}${"texto".padEnd(30)}fondo`);
   console.log("-".repeat(78));
@@ -229,6 +297,7 @@ if (fails.length) {
       `${String(f.ratio).padEnd(7)}${String(f.min).padEnd(6)}${sel.padEnd(34)}${hex(f.bg)}`,
     );
     console.log(`${" ".repeat(13)}"${f.text}"  ${f.size}px ${f.weight}`);
+    if (process.env.CR_DEBUG) console.log(`${" ".repeat(13)}dbg x,y,w,h,img: ${f.dbg.join(",")} | item x,y: ${Math.round(f.x)},${Math.round(f.y)}`);
   }
   console.log(`\nfallo: ${fails.length} textos no se leen sobre su fondo real`);
   process.exit(1);

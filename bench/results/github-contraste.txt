@@ -1,0 +1,13 @@
+
+captura: bench/shots/contraste.png
+
+contraste AA: 4.5:1 normal, 3:1 grande
+118 textos medidos, 1 por debajo, 16 no medibles
+64 descartados por coordenadas fuera de la imagen
+
+ratio  min   texto                         fondo
+------------------------------------------------------------------------------
+1      4.5   …le__Text-font--monospace___QXHDQ #58635b
+             "Built with GitHub"  14px 400
+
+fallo: 1 textos no se leen sobre su fondo real

@@ -1,0 +1,31 @@
+
+captura: bench/shots/contraste.png
+
+contraste AA: 4.5:1 normal, 3:1 grande
+274 textos medidos, 10 por debajo, 155 no medibles
+23 descartados por coordenadas fuera de la imagen
+
+ratio  min   texto                         fondo
+------------------------------------------------------------------------------
+1      3     … > span.hero-section__title-copy #de89e4
+             "Acepta pagos, ofrece servicios financieros e implementa modelos person"  44px 300
+1.3    3     …hds-heading.stats-section__title #f8fafd
+             "La columna vertebral del comercio mundial"  56px 300
+1.39   3     …le > em.hero-section__title-main #59212f
+             "La infraestructura financiera para hacer crecer tu negocio."  44px 300
+2.41   4.5   …saction-button-text-values > div #ffe0d1
+             "Continuar"  10px 400
+2.41   4.5   …payment-button-text-values > div #ffe0d1
+             "Continuar"  10px 400
+2.66   3     …ng.sessions-section__header-text #ce916a
+             "Construyendo la infraestructura económica para la IA"  48px 300
+3.35   4.5   …active-subscriptions-description #fbfcfe
+             "de suscripciones activas gestionadas en Stripe Billing"  16px 300
+3.41   4.5   …stat-payments-volume-description #fdfefe
+             "en volumen de pagos procesados en 2025."  16px 300
+3.41   4.5   …at-historical-uptime-description #fdfefe
+             "de los servicios de Stripe"  16px 300
+3.41   4.5   …ats-menu__stat-description__link #fdfefe
+             "tiempo de actividad histórico"  16px 300
+
+fallo: 10 textos no se leen sobre su fondo real

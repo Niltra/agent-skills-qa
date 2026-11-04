@@ -25,7 +25,7 @@ const CHECK = `(() => {
   const visible = (el) => {
     const r = el.getBoundingClientRect();
     const s = getComputedStyle(el);
-    return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none";
+    return r.width > 8 && r.height > 8 && s.visibility !== "hidden" && s.display !== "none";
   };
   const label = (el) => {
     const parts = [];
@@ -39,13 +39,26 @@ const CHECK = `(() => {
     }
     return parts.join(" > ");
   };
+  const path = (el) => {
+    const parts = [];
+    for (let n = el; n && n.nodeType === 1 && n !== document.documentElement; n = n.parentElement) {
+      let i = 1;
+      for (let s = n.previousElementSibling; s; s = s.previousElementSibling) {
+        if (s.tagName === n.tagName) i++;
+      }
+      parts.unshift(n.tagName.toLowerCase() + ":" + i);
+    }
+    return parts.join(">");
+  };
   const out = [];
   for (const el of document.querySelectorAll("body *")) {
+    if (el.closest("svg")) continue;
     if (!visible(el)) continue;
     const s = getComputedStyle(el);
     const r = el.getBoundingClientRect();
     const bad = [];
     const clips = s.overflowX === "hidden" || s.overflowX === "clip" || s.textOverflow === "ellipsis";
+    const ellipsis = s.textOverflow === "ellipsis";
     if (clips) {
       for (const c of el.children) {
         const cr = c.getBoundingClientRect();
@@ -66,7 +79,7 @@ const CHECK = `(() => {
     }
     if (bad.length) {
       el.setAttribute("data-rl", String(out.length));
-      out.push({ id: out.length, sel: label(el), text, bad, w: Math.round(r.width) });
+      out.push({ id: out.length, path: path(el), sel: label(el), text, bad, ellipsis, w: Math.round(r.width) });
     }
   }
   return {
@@ -124,53 +137,95 @@ const report = [];
 for (const locale of locales) {
   await page.goto(urlFor(url, locale), { waitUntil: "load" });
   await page.waitForTimeout(settle);
-  let shot = null;
   let result;
   try {
     result = await page.evaluate(CHECK_CODE);
   } catch {
     result = { items: [], pageScroll: false, error: true };
   }
-  if (result.items.length || result.pageScroll) {
-    shot = `${out}/${locale}.png`;
-    await page.evaluate((items) => {
-      for (const it of items) {
-        const el = document.querySelector(`[data-rl="${it.id}"]`);
+  report.push({ locale, ...result });
+}
+
+// Lo que ya está roto en el idioma base no lo causa la traducción: se descuenta.
+const baseReport = report.find((r) => r.locale === baseLocale);
+const baseItems = baseReport?.items || [];
+const baseKeys = new Set(baseItems.map((i) => i.path));
+const baseScroll = Boolean(baseReport?.pageScroll);
+const baseline = baseItems.length + (baseScroll ? 1 : 0);
+
+for (const r of report) {
+  r.fresh = r.locale === baseLocale ? [] : r.items.filter((i) => !baseKeys.has(i.path));
+  r.freshScroll = r.locale !== baseLocale && r.pageScroll && !baseScroll;
+  r.shot = null;
+}
+
+// Un recorte con ellipsis puede ser intencionado; solo es fallo si no hay puntos suspensivos,
+// o si el elemento se sale del contenedor o de la pantalla.
+const hard = (it) =>
+  it.bad.some((b) => b === "viewport" || b === "child-out") ||
+  (it.bad.some((b) => b.startsWith("clipped")) && !it.ellipsis);
+
+for (const r of report) {
+  r.freshHard = r.fresh.filter(hard);
+  r.freshSoft = r.fresh.filter((it) => !hard(it));
+}
+
+for (const r of report) {
+  if (!r.freshHard.length && !r.freshScroll) continue;
+  await page.goto(urlFor(url, r.locale), { waitUntil: "load" });
+  await page.waitForTimeout(settle);
+  const again = await page.evaluate(CHECK_CODE).catch(() => ({ items: [] }));
+  const keys = new Set(r.freshHard.map((i) => i.path));
+  const ids = again.items.filter((i) => keys.has(i.path)).map((i) => i.id);
+  await page
+    .evaluate((list) => {
+      for (const id of list) {
+        const el = document.querySelector(`[data-rl="${id}"]`);
         if (el) {
           el.style.outline = "3px solid #ff3b30";
           el.style.outlineOffset = "2px";
         }
       }
-    }, result.items).catch(() => {});
-    await page.screenshot({ path: shot, fullPage: true });
-  }
-  report.push({ locale, ...result, shot });
+    }, ids)
+    .catch(() => {});
+  r.shot = `${out}/${r.locale}.png`;
+  await page.screenshot({ path: r.shot, fullPage: true });
 }
 
 await browser.close();
 
-const problems = (r) => r.items.length + (r.pageScroll ? 1 : 0);
 let failed = false;
-console.log(`\n${"locale".padEnd(8)}${"problemas".padEnd(12)}notas`);
-console.log("-".repeat(58));
+console.log(`\n${"locale".padEnd(9)}${"fallos".padEnd(9)}${"revisar".padEnd(9)}${"base".padEnd(7)}notas`);
+console.log("-".repeat(64));
 for (const r of report) {
-  const n = problems(r);
-  const extra = r.error ? "no se pudo medir" : r.pageScroll ? "scroll horizontal" : "";
+  const n = r.freshHard.length + (r.freshScroll ? 1 : 0);
+  const extra = r.error
+    ? "no se pudo medir"
+    : r.locale === baseLocale
+      ? "referencia"
+      : r.freshScroll
+        ? "scroll horizontal nuevo"
+        : "";
   if (n > 0 && r.locale !== baseLocale) failed = true;
-  console.log(`${r.locale.padEnd(8)}${String(n).padEnd(12)}${extra}`);
+  console.log(`${r.locale.padEnd(9)}${String(n).padEnd(9)}${String(r.freshSoft.length).padEnd(9)}${String(baseline).padEnd(7)}${extra}`);
+}
+if (baseline > 0) {
+  console.log(`\n${baseline} problemas ya existen en ${baseLocale}: no los causa la traducción y no cuentan.`);
 }
 for (const r of report) {
-  if (!r.items.length) continue;
-  console.log(`\n${r.locale}${r.shot ? `  â†’ ${r.shot}` : ""}`);
-  for (const it of r.items) {
+  if (!r.freshHard.length) continue;
+  console.log(`\n${r.locale}${r.shot ? `  → ${r.shot}` : ""}`);
+  for (const it of r.freshHard) {
     console.log(`  [${it.bad.join(",").padEnd(15)}] ${it.sel}`);
     console.log(`  ${" ".repeat(17)}"${it.text}"`);
   }
 }
+const soft = report.reduce((n, r) => n + r.freshSoft.length, 0);
+if (soft) console.log(`\n${soft} recortes con ellipsis: puede ser intencionado, revisar a ojo.`);
 console.log("");
 if (failed) {
-  const broken = report.filter((r) => problems(r) > 0 && r.locale !== baseLocale).map((r) => r.locale);
-  console.log(`fallo: ${broken.join(", ")} rompe el layout`);
+  const broken = report.filter((r) => r.freshHard.length + (r.freshScroll ? 1 : 0) > 0 && r.locale !== baseLocale).map((r) => r.locale);
+  console.log(`fallo: ${broken.join(", ")} rompe el layout solo en ese idioma`);
   process.exit(1);
 }
-console.log("ok: mismo layout en todos los idiomas");
+console.log("ok: ningún elemento se rompe solo por cambiar de idioma");

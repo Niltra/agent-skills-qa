@@ -51,6 +51,11 @@ assert.notEqual(run().status, 0, "no url should fail");
 assert.notEqual(run("./fixture/bad.html", "--wat", "1").status, 0, "unknown flag should fail");
 assert.notEqual(run("./fixture/bad.html", "--config", "nope.json").status, 0, "missing config should fail");
 
+// 5. A page with no fields is not "approved": it fails loudly with exit 2.
+const none = run("./fixture/sin-campos.html", "--out", "shots-test");
+assert.equal(none.status, 2, "a form with no fields must exit 2");
+assert.match(none.stderr, /no se encontraron campos/);
+
 rmSync(at("shots-test"), { recursive: true, force: true });
 rmSync(at("shots-cfg"), { recursive: true, force: true });
 rmSync(at("tmp-config.json"), { force: true });

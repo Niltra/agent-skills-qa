@@ -33,7 +33,14 @@ assert.match(loose.stdout, /ok:/);
 // 4. Unknown flag must not pass silently.
 assert.notEqual(run("./fixture/index.html", "--levl", "AAA").status, 0);
 
-// 5. A config file can raise the bar without touching code.
+// 5. Known WCAG ratios must come out with the right number.
+const precise = run("./fixture/preciso.html", "--target", "21.1", "--out", "shots-test");
+assert.equal(precise.status, 1);
+assert.match(precise.stdout, /21\s+21\.1/, "black on white should be 21:1");
+assert.match(precise.stdout, /4\.54\s+21\.1/, "#767676 on white should be 4.54:1");
+assert.match(precise.stdout, /3\.03\s+21\.1/, "#949494 on white should be 3.03:1");
+
+// 6. A config file can raise the bar without touching code.
 writeFileSync(at("tmp-config.json"), JSON.stringify({ level: "AAA", out: "shots-cfg" }));
 const cfg = run("./fixture/index.html", "--config", "tmp-config.json");
 assert.equal(cfg.status, 1, cfg.stdout + cfg.stderr);
@@ -42,7 +49,12 @@ assert.match(cfg.stdout, /titular grande/, "the config level was ignored");
 // 6. A missing config fails loudly.
 assert.notEqual(run("./fixture/index.html", "--config", "nope.json").status, 0);
 
+// 7. A page with no text is clean, not a crash.
+const vacio = run("./fixture/vacio.html", "--level", "AA", "--out", "shots-test");
+assert.equal(vacio.status, 0, vacio.stdout + vacio.stderr);
+assert.match(vacio.stdout, /0 textos medidos/);
+
 rmSync(at("shots-test"), { recursive: true, force: true });
 rmSync(at("shots-cfg"), { recursive: true, force: true });
 rmSync(at("tmp-config.json"), { force: true });
-console.log("ok: AA gradient, AAA borderline, target override, config respected, bad flags fail");
+console.log("ok: AA gradient, AAA borderline, WCAG numbers exact, config respected, bad flags fail");

@@ -1,0 +1,9 @@
+
+locale   fallos   revisar  base   notas
+----------------------------------------------------------------
+en-US    0        0        18     referencia
+de       0        0        18     
+
+18 problemas ya existen en en-US: no los causa la traducción y no cuentan.
+
+ok: ningún elemento se rompe solo por cambiar de idioma

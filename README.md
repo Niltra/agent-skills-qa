@@ -65,10 +65,18 @@ Todo corre contra fixtures que rompen a propósito. Sin red, sin claves, sin mod
   contraste-real              300 chars
   ...
 ok: 5 skills cumplen el contrato
-ok: 3 broken elements, clean locales pass, bad flags fail, config respected
+ok: 2 hard breaks + 2 ellipsis, clean locales pass, bad flags fail, config respected
 ok: AA gradient, AAA borderline, target override, config respected, bad flags fail
 ok: 7 checks catch the liar, 7 pass on the honest form, config respected
 ```
+
+## Probado contra webs reales
+
+`node bench/run.mjs` lanza los motores contra 11 URLs públicas. Resultados, falsos positivos encontrados y límites en [`BENCH.md`](BENCH.md).
+
+- `rompelayout`: 0 roturas nuevas en 6 sitios multiidioma.
+- `contraste-real`: 808 textos medidos en Wikipedia y 274 en Stripe, con los falsos positivos documentados y corregidos.
+- `formulario-que-no-miente` no se prueba en sitios de terceros: no se envían datos a quien no te ha dado permiso.
 
 ## Fuentes
 

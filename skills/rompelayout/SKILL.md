@@ -65,6 +65,9 @@ Código de salida 1 si un idioma que no es el base rompe. El primero de `--local
 - No traduce. Le das la URL de cada idioma ya traducida.
 - Solo ve el estado inicial de la página: no abre modales, menús ni hover.
 - Un texto que se desborda *sin* recorte no lo marca. Solo detecta recorte, escape de contenedor y salida de viewport.
+- Iguala contra el **idioma base**: lo que ya está roto ahí no cuenta como fallo de traducción.
+- Un recorte con `text-overflow: ellipsis` se marca como "revisar", no como fallo: puede ser intencionado.
+- Ignora `<svg>` y cajas menores de 8 px (textos `sr-only` para lectores de pantalla).
 - No compara píxeles entre idiomas. Para regresión visual están Percy, Chromatic o los snapshots de Playwright.
 - No detecta solapamientos ni texto encima de una imagen.
 
