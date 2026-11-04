@@ -1,13 +1,13 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
- * contraste-real â€” mide el contraste WCAG contra los pÃ­xeles que hay detrÃ¡s
- * del texto, incluidas imÃ¡genes, degradados y vÃ­deo.
+ * contraste-real — mide el contraste WCAG contra los píxeles que hay detrás
+ * del texto, incluidas imágenes, degradados y vídeo.
  *
  *   node contraste.mjs https://tuweb.com --level AA
  *   node contraste.mjs ./fixture/index.html --level AAA --out shots
  *
  * Truco: oculta el texto, captura el fondo real, compara contra el color del texto.
- * Sale con 1 si algÃºn texto no llega al umbral.
+ * Sale con 1 si algún texto no llega al umbral.
  */
 import { chromium } from "playwright";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

@@ -17,6 +17,7 @@ const TOOLS = {
   "contraste-real": join(ROOT, "skills", "contraste-real", "contraste.mjs"),
   rompelayout: join(ROOT, "skills", "rompelayout", "rompelayout.mjs"),
   "formulario-que-no-miente": join(ROOT, "skills", "formulario-que-no-miente", "formulario.mjs"),
+  "lector-de-pantalla": join(ROOT, "skills", "lector-de-pantalla", "lector.mjs"),
 };
 
 rmSync(TMP, { recursive: true, force: true });

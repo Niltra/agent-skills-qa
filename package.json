@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Skills que auditan una web con evidencia: layout por idioma, contraste real, formularios y expediente EAA.",
   "scripts": {
-    "test": "node scripts/check-skills.mjs && node skills/rompelayout/test.mjs && node skills/contraste-real/test.mjs && node skills/formulario-que-no-miente/test.mjs",
+    "test": "node scripts/check-skills.mjs && node skills/rompelayout/test.mjs && node skills/contraste-real/test.mjs && node skills/formulario-que-no-miente/test.mjs && node skills/lector-de-pantalla/test.mjs",
     "conformance": "node conformance/run.mjs",
     "fuzz": "node conformance/fuzz.mjs --seed 2026 --pages 30 --blocks 20",
     "fuzz:layout": "node conformance/fuzz-layout.mjs --seed 3 --pages 12",
@@ -13,6 +13,7 @@
     "test:rompelayout": "node skills/rompelayout/test.mjs",
     "test:contraste": "node skills/contraste-real/test.mjs",
     "test:formulario": "node skills/formulario-que-no-miente/test.mjs",
+    "test:lector": "node skills/lector-de-pantalla/test.mjs",
     "test:launch": "python tools/skill-launch/test_launch.py",
     "card": "python scripts/repo-card.py"
   },

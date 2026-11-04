@@ -329,4 +329,48 @@ const formulario = [
   },
 ];
 
-export const CASES = [...contraste, ...rompelayout, ...formulario];
+// ---------- lector-de-pantalla ----------
+
+const lPage = (body, lang = "es") => `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"></head><body>${body}</body></html>`;
+
+const INGLES = `The application lets a team create invoices, collect payments and reconcile the month without exporting anything by hand. The administration team can review every payment from a single panel, and the sales team checks the status of each customer when it needs to with a search by name or by invoice number. The reports are generated every morning and are sent to the address that the user configures. If a payment fails, the application shows a notice in the panel and sends an email, and it keeps the attempt recorded so that it can be reviewed later with the rest of the history of that customer and that invoice.`;
+
+const lector = [
+  {
+    name: "l-bueno",
+    tool: "lector-de-pantalla",
+    html: lPage(`<h1>Facturas</h1><p>Texto normal.</p><img src="a.png" alt="Panel con tres pagos"><a href="/d">Leer la documentación</a>`),
+    args: [],
+    expect: { exit: 0, has: ["nombre útil"], hasNot: ["RUIDO"] },
+  },
+  {
+    name: "l-alt-fichero",
+    tool: "lector-de-pantalla",
+    html: lPage(`<h1>Tienda</h1><img src="a.png" alt="hero-final-2.jpg">`),
+    args: [],
+    expect: { exit: 1, has: ["alt = nombre del fichero"] },
+  },
+  {
+    name: "l-enlace-generico",
+    tool: "lector-de-pantalla",
+    html: lPage(`<h1>Tienda</h1><a href="/a">leer más</a>`),
+    args: [],
+    expect: { exit: 1, has: ["enlace sin nombre útil"] },
+  },
+  {
+    name: "l-repetido",
+    tool: "lector-de-pantalla",
+    html: lPage(`<h1>Tienda</h1><img src="a.png" alt="Producto"><img src="b.png" alt="Producto"><img src="c.png" alt="Producto">`),
+    args: [],
+    expect: { exit: 1, has: ["texto repetido"] },
+  },
+  {
+    name: "l-idioma",
+    tool: "lector-de-pantalla",
+    html: lPage(`<h1>Invoices</h1><p>${INGLES}</p>`, "es"),
+    args: [],
+    expect: { exit: 1, has: ["idioma declarado incorrecto", "parece en"] },
+  },
+];
+
+export const CASES = [...contraste, ...rompelayout, ...formulario, ...lector];

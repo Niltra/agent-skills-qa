@@ -1,6 +1,6 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
- * rompelayout â€” find where your UI breaks in other languages.
+ * rompelayout — find where your UI breaks in other languages.
  *
  *   node rompelayout.mjs ./site/{locale}.html --locales es,en,de
  *   node rompelayout.mjs https://site.com/{locale} --locales es,en,de

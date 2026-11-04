@@ -1,0 +1,9 @@
+{
+  "out": "shots",
+  "width": 1280,
+  "height": 900,
+  "settle": 400,
+  "scroll": true,
+  "maxNodes": 60,
+  "repeatLimit": 3
+}
