@@ -84,5 +84,5 @@ Tabla con prueba, resultado y evidencia. Sin evidencia no cuenta. Si un campo no
 - No prueba el envío real ni mira la bandeja de entrada: cuenta peticiones, no confirma que lleguen.
 - No valida reglas de negocio (cupones, stock, edad mínima).
 - Los lectores de pantalla se simulan por DOM (`aria-live`, `role=alert`), no se ejecuta NVDA ni VoiceOver.
-- No rellena campos dentro de `iframe` ni shadow DOM cerrado.
+- No rellena campos dentro de `iframe` ni dentro de shadow DOM, abierto o cerrado.
 - El doble clic se dispara en el mismo instante. Un usuario humano tarda más; si el formulario solo se protege por tiempo, esta prueba no lo detecta.
